@@ -111,11 +111,11 @@ export default function NotificationBell({ userId }: Props) {
       {/* ── Bell button ── */}
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-[var(--radius-sm)] flex items-center justify-center text-ink-muted dark:text-ink-subtle hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark transition-all relative"
+        className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-all relative"
       >
-        <span className="text-lg">🔔</span>
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
         {unread > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-amber text-black text-[9px] font-bold flex items-center justify-center leading-none">
+          <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center leading-none">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -124,15 +124,15 @@ export default function NotificationBell({ userId }: Props) {
       {/* ── Dropdown panel ── */}
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-80 bg-card dark:bg-card-dark rounded-[var(--radius-lg)] shadow-modal border border-surface dark:border-surface-dark overflow-hidden z-50"
-          style={{ maxHeight: '440px' }}
+          className="absolute right-0 top-full mt-2 w-80 rounded-xl shadow-xl border border-border overflow-hidden z-50"
+          style={{ maxHeight: '440px', backgroundColor: 'hsl(var(--background))' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-surface dark:border-surface-dark">
-            <h3 className="font-serif text-sm font-black text-ink dark:text-ink-dark">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h3 className="font-bold text-sm text-foreground">
               Notifications
               {unread > 0 && (
-                <span className="ml-2 text-[10px] font-mono bg-amber text-black px-1.5 py-0.5 rounded-full">
+                <span className="ml-2 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
                   {unread}
                 </span>
               )}
@@ -140,7 +140,7 @@ export default function NotificationBell({ userId }: Props) {
             {unread > 0 && (
               <button
                 onClick={markAllRead}
-                className="text-[11px] text-amber font-semibold hover:underline"
+                className="text-[11px] text-primary font-semibold hover:underline"
               >
                 Tout lire
               </button>
@@ -157,39 +157,38 @@ export default function NotificationBell({ userId }: Props) {
 
             {!loading && notifs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                <div className="text-4xl mb-2">🔔</div>
-                <p className="text-sm font-semibold text-ink dark:text-ink-dark mb-1">Aucune notification</p>
-                <p className="text-xs text-ink-muted dark:text-ink-subtle">Tu seras notifié des commentaires, badges et progressions</p>
+                <svg className="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                <p className="text-sm font-semibold text-foreground mb-1">Aucune notification</p>
+                <p className="text-xs text-muted-foreground">Tu seras notifié des commentaires, badges et progressions</p>
               </div>
             )}
 
             {notifs.map(n => (
               <div
                 key={n.id}
-                className="flex flex-col px-4 py-3 border-b border-surface dark:border-surface-dark last:border-0 transition-colors"
-                style={{ background: !n.read ? 'var(--color-amber-bg)' : undefined }}
+                className="flex flex-col px-4 py-3 border-b border-border last:border-0 transition-colors"
+                style={{ background: !n.read ? 'hsl(var(--primary) / 0.07)' : undefined }}
               >
                 <div className="flex items-start gap-3">
                   {/* Icon */}
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0 mt-0.5"
-                    style={{ background: 'var(--color-surface)' }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0 mt-0.5 bg-secondary">
                     {TYPE_ICON[n.type] || '📬'}
                   </div>
 
                   {/* Content */}
                   <button className="flex-1 min-w-0 text-left" onClick={() => markRead(n.id)}>
-                    <p className="text-[13px] font-semibold text-ink dark:text-ink-dark leading-tight mb-0.5">
+                    <p className="text-[13px] font-semibold text-foreground leading-tight mb-0.5 font-semibold">
                       {n.title}
                     </p>
                     {n.body && (
-                      <p className="text-[11px] text-ink-muted dark:text-ink-subtle leading-tight">
+                      <p className="text-[11px] text-muted-foreground leading-tight text-[11px]">
                         {n.body}
                       </p>
                     )}
-                    <p className="text-[10px] text-ink-subtle mt-1 font-mono">{timeAgo(n.created_at)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(n.created_at)}</p>
                   </button>
 
-                  {!n.read && <div className="w-2 h-2 rounded-full bg-amber flex-shrink-0 mt-2" />}
+                  {!n.read && <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />}
                 </div>
 
                 {/* Boutons d'action pour les demandes d'amis */}
@@ -205,7 +204,7 @@ export default function NotificationBell({ userId }: Props) {
                         markRead(n.id)
                         setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, data: { ...x.data, friendship_id: null } } : x))
                       }}
-                      className="flex-1 text-[11px] font-semibold py-1.5 rounded-lg bg-amber text-black hover:opacity-90 transition-opacity"
+                      className="flex-1 text-[11px] font-semibold py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
                     >
                       Accepter
                     </button>
@@ -219,7 +218,7 @@ export default function NotificationBell({ userId }: Props) {
                         markRead(n.id)
                         setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, data: { ...x.data, friendship_id: null } } : x))
                       }}
-                      className="flex-1 text-[11px] font-semibold py-1.5 rounded-lg bg-surface dark:bg-surface-dark text-ink-muted hover:bg-hover transition-colors"
+                      className="flex-1 text-[11px] font-semibold py-1.5 rounded-lg bg-secondary text-muted-foreground hover:bg-secondary/80 transition-colors"
                     >
                       Refuser
                     </button>
@@ -229,7 +228,7 @@ export default function NotificationBell({ userId }: Props) {
                 {/* Lien vers /friends si pas de friendship_id direct */}
                 {n.type === 'friend_request' && !n.data?.friendship_id && (
                   <a href="/friends" onClick={() => markRead(n.id)}
-                    className="ml-11 mt-2 text-[11px] font-semibold text-amber hover:underline">
+                    className="ml-11 mt-2 text-[11px] font-semibold text-primary hover:underline">
                     Voir dans Amis →
                   </a>
                 )}

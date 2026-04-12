@@ -1,20 +1,19 @@
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { friendshipId } = await request.json()
-  if (!friendshipId) return NextResponse.json({ error: 'friendshipId manquant' }, { status: 400 })
+  const { friendshipId } = await req.json()
 
   const { error } = await supabase
     .from('friendships')
-    .update({ status: 'declined', updated_at: new Date().toISOString() })
+    .delete()
     .eq('id', friendshipId)
-    .eq('addressee_id', user.id)
+    .or(`addressee_id.eq.${user.id},requester_id.eq.${user.id}`)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ ok: true })
 }

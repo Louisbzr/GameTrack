@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ProfileClient from './ProfileClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -11,18 +13,18 @@ export default async function ProfilePage() {
     .from('profiles')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
+  // Include is_favorite in library select
   const { data: library } = await supabase
     .from('library')
-    .select('*, games(name, genres, cover_url)')
+    .select('id, status, rating, review, is_favorite, updated_at, games(id, name, genres, cover_url, platforms, released_at)')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
-    .limit(5)
 
   const { data: badges } = await supabase
     .from('user_badges')
-    .select('badge_slug, unlocked_at')
+    .select('badge_slug, earned_at')
     .eq('user_id', user.id)
 
   const { data: xpHistory } = await supabase
@@ -30,22 +32,25 @@ export default async function ProfilePage() {
     .select('amount, reason, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(5)
+    .limit(10)
 
-  const { count: total } = await supabase.from('library').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
-  const { count: completed } = await supabase.from('library').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'completed')
-  const { count: playing } = await supabase.from('library').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'playing')
-
-  const ratings = library?.filter(l => (l as any).rating).map(l => (l as any).rating) || []
-  const avgRating = ratings.length ? (ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1) : '—'
+  const lib = library || []
+  const stats = {
+    total:     lib.length,
+    completed: lib.filter((l: any) => l.status === 'completed').length,
+    playing:   lib.filter((l: any) => l.status === 'playing').length,
+    avgRating: lib.filter((l: any) => l.rating).length > 0
+      ? (lib.reduce((s: number, l: any) => s + (l.rating ?? 0), 0) / lib.filter((l: any) => l.rating).length).toFixed(1)
+      : '—',
+  }
 
   return (
     <ProfileClient
       profile={profile}
-      library={library || []}
+      library={lib}
       badges={badges || []}
       xpHistory={xpHistory || []}
-      stats={{ total: total || 0, completed: completed || 0, playing: playing || 0, avgRating }}
+      stats={stats}
     />
   )
 }

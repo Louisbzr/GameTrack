@@ -4,39 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  completed: { label: 'Terminé',   bg: 'var(--color-forest-bg)',  color: 'var(--color-forest)' },
-  playing:   { label: 'En cours',  bg: 'var(--color-cobalt-bg)',  color: 'var(--color-cobalt)' },
-  dropped:   { label: 'Abandonné', bg: 'var(--color-crimson-bg)', color: 'var(--color-crimson)' },
-  backlog:   { label: 'Ajouté',    bg: 'var(--color-amber-bg)',   color: 'var(--color-amber)' },
-}
-
-const AVATAR_PALETTE = [
-  { bg: 'var(--color-cobalt-bg)',  text: 'var(--color-cobalt)' },
-  { bg: 'var(--color-forest-bg)',  text: 'var(--color-forest)' },
-  { bg: 'var(--color-crimson-bg)', text: 'var(--color-crimson)' },
-  { bg: 'var(--color-amber-bg)',   text: 'var(--color-amber)' },
-  { bg: 'var(--color-grape-bg)',   text: 'var(--color-grape)' },
-]
-
-function hashStr(str: string) {
-  let h = 0
-  for (const c of str) h = c.charCodeAt(0) + ((h << 5) - h)
-  return Math.abs(h)
-}
-
-function getAvatar(str: string) { return AVATAR_PALETTE[hashStr(str) % AVATAR_PALETTE.length] }
-
-function timeAgo(date: string) {
-  const diff = Date.now() - new Date(date).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1)  return 'À l\'instant'
-  if (m < 60) return `il y a ${m}min`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `il y a ${h}h`
-  return `il y a ${Math.floor(h / 24)}j`
-}
+import { STATUS_CONFIG, getAvatar, timeAgo } from '@/lib/gametrack'
 
 interface Friend { id: string; username: string; avatar_url: string | null }
 interface RecentGame { gameId: string; gameName: string; coverUrl: string | null; username: string; userId: string; addedAt: string }
@@ -46,12 +14,14 @@ interface Props {
   events: any[]
   friends: Friend[]
   recentGames?: RecentGame[]
+  /** IDs des jeux déjà présents dans la bibliothèque — évite les doublons */
+  libraryGameIds?: string[]
 }
 
-export default function FeedClient({ userId, events, friends, recentGames = [] }: Props) {
+export default function FeedClient({ userId, events, friends, recentGames = [], libraryGameIds = [] }: Props) {
   const [comments,     setComments]     = useState<Record<string, string>>({})
   const [sending,      setSending]      = useState<Record<string, boolean>>({})
-  const [addedGames,   setAddedGames]   = useState<Set<string>>(new Set())
+  const [addedGames,   setAddedGames]   = useState<Set<string>>(new Set(libraryGameIds))
   const [inviteCopied, setInviteCopied] = useState(false)
   const supabase = createClient()
   const router   = useRouter()
@@ -67,9 +37,29 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
   }
 
   async function addGame(gameId: string) {
+    // Optimistic UI immédiat
     setAddedGames(prev => new Set([...prev, gameId]))
-    // Cherche le game dans la DB et l'ajoute à la bibliothèque
-    await supabase.from('library').insert({ user_id: userId, game_id: gameId, status: 'backlog' })
+
+    // Vérifie doublon avant insert
+    const { data: existing } = await supabase
+      .from('library')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('game_id', gameId)
+      .maybeSingle()
+
+    if (existing) return // déjà en bibliothèque, on ne fait rien
+
+    const { error } = await supabase
+      .from('library')
+      .insert({ user_id: userId, game_id: gameId, status: 'backlog' })
+
+    if (error) {
+      // Rollback si l'insert a échoué pour une raison inattendue
+      if (error.code !== '23505') {
+        setAddedGames(prev => { const s = new Set(prev); s.delete(gameId); return s })
+      }
+    }
   }
 
   function copyInvite() {
@@ -92,7 +82,7 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
               Ce que jouent <em className="italic text-amber">tes amis</em>
             </h1>
             <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic">
-              {events.length > 0 ? `${events.length} activités récentes` : 'Aucune activité pour l\'instant'}
+              {events.length > 0 ? `${events.length} activités récentes` : "Aucune activité pour l'instant"}
             </p>
           </div>
 
@@ -111,12 +101,12 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
           ) : (
             <div className="flex flex-col gap-3">
               {events.map((event: any) => {
-                const profile = Array.isArray(event.profiles) ? event.profiles[0] : event.profiles
-                const library = Array.isArray(event.library)  ? event.library[0]  : event.library
-                const game    = library?.games
-                const username   = profile?.username || 'Joueur'
-                const avatar     = getAvatar(username)
-                const statusCfg  = STATUS_CONFIG[library?.status] || STATUS_CONFIG.backlog
+                const profile   = Array.isArray(event.profiles) ? event.profiles[0] : event.profiles
+                const library   = Array.isArray(event.library)  ? event.library[0]  : event.library
+                const game      = library?.games
+                const username  = profile?.username || 'Joueur'
+                const avatar    = getAvatar(username)
+                const statusCfg = STATUS_CONFIG[library?.status] || STATUS_CONFIG.backlog
                 const friendsCount = events.filter(e => {
                   const lib = Array.isArray(e.library) ? e.library[0] : e.library
                   return lib?.games?.id === game?.id && e.id !== event.id
@@ -125,12 +115,11 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
                 return (
                   <div key={event.id} className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] overflow-hidden shadow-card hover:shadow-hover transition-all">
 
-                    {/* Cover banner si disponible */}
+                    {/* Cover banner */}
                     {game?.cover_url && (
                       <div className="relative h-24 overflow-hidden">
                         <img src={game.cover_url} alt={game.name} className="w-full h-full object-cover opacity-60" style={{ filter: 'blur(1px)', transform: 'scale(1.05)' }}/>
                         <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.7) 100%)' }}/>
-                        {/* Game name on banner */}
                         <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
                           <p className="font-serif text-sm font-black text-white truncate">{game.name}</p>
                           {library?.rating && (
@@ -153,15 +142,13 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
                         </Link>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Link href={`/profile/${profile?.id}`}>
-                              <span className="text-sm font-bold text-ink dark:text-ink-dark hover:text-amber transition-colors">{username}</span>
+                            <Link href={`/profile/${profile?.id}`} className="text-sm font-bold text-ink dark:text-ink-dark hover:text-amber transition-colors">
+                              {username}
                             </Link>
-                            {/* Status badge */}
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                               style={{ background: statusCfg.bg, color: statusCfg.color }}>
                               {statusCfg.label}
                             </span>
-                            {/* Rating inline si pas de cover */}
                             {!game?.cover_url && library?.rating && (
                               <span className="text-xs font-bold text-amber font-mono">
                                 {'★'.repeat(library.rating)}
@@ -184,7 +171,7 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
                         </div>
                       )}
 
-                      {/* Footer : amis qui jouent + bouton ajouter */}
+                      {/* Footer */}
                       <div className="flex items-center justify-between gap-3 mb-3">
                         {friendsCount > 0 ? (
                           <p className="text-[11px] text-ink-subtle">
@@ -192,7 +179,6 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
                           </p>
                         ) : <div />}
 
-                        {/* Bouton ajouter ce jeu */}
                         {game?.id && (
                           <button
                             onClick={() => addGame(game.id)}
@@ -203,7 +189,7 @@ export default function FeedClient({ userId, events, friends, recentGames = [] }
                               color:      addedGames.has(game.id) ? 'var(--color-forest)'    : 'var(--color-ink-muted)',
                             }}
                           >
-                            {addedGames.has(game.id) ? '✓ Ajouté' : '+ Ajouter à ma liste'}
+                            {addedGames.has(game.id) ? '✓ Dans ma liste' : '+ Ajouter à ma liste'}
                           </button>
                         )}
                       </div>

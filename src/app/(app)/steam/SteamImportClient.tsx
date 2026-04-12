@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 interface SteamGame {
@@ -11,40 +10,27 @@ interface SteamGame {
   img_icon_url?: string
 }
 
-type Step = 'input' | 'fetching' | 'preview' | 'importing' | 'done' | 'error'
-
-interface Result {
+interface ImportResult {
   imported: number
   skipped:  number
   errors:   number
   details:  string[]
 }
 
-async function searchRawg(name: string): Promise<any | null> {
-  try {
-    const res  = await fetch(`/api/games/search?q=${encodeURIComponent(name)}`)
-    const data = await res.json()
-    return Array.isArray(data) && data.length > 0 ? data[0] : null
-  } catch { return null }
-}
+type Step = 'input' | 'fetching' | 'preview' | 'importing' | 'done' | 'error'
 
 export default function SteamImportClient({ userId }: { userId: string }) {
   const searchParams = useSearchParams()
-  const autoSyncId   = searchParams.get('autoSync') // steam_id passé depuis le profil
+  const autoSyncId   = searchParams.get('autoSync')
 
-  const [steamId,     setSteamId]     = useState(autoSyncId || '')
-  const [step,        setStep]        = useState<Step>(autoSyncId ? 'fetching' : 'input')
-  const [games,       setGames]       = useState<SteamGame[]>([])
-  const [result,      setResult]      = useState<Result | null>(null)
-  const [errorMsg,    setErrorMsg]    = useState('')
-  const [progress,    setProgress]    = useState(0)
-  const [current,     setCurrent]     = useState(0)
-  const [currentName, setCurrentName] = useState('')
+  const [steamId,  setSteamId]  = useState(autoSyncId || '')
+  const [step,     setStep]     = useState<Step>(autoSyncId ? 'fetching' : 'input')
+  const [games,    setGames]    = useState<SteamGame[]>([])
+  const [result,   setResult]   = useState<ImportResult | null>(null)
+  const [errorMsg, setErrorMsg] = useState('')
 
-  const router   = useRouter()
-  const supabase = createClient()
+  const router = useRouter()
 
-  // Auto-sync : démarre immédiatement si steam_id fourni en param
   useEffect(() => {
     if (autoSyncId) fetchGames(autoSyncId)
   }, [])
@@ -74,82 +60,28 @@ export default function SteamImportClient({ userId }: { userId: string }) {
   async function runImport(gamesList: SteamGame[]) {
     if (!gamesList.length) return
     setStep('importing')
-    setProgress(0)
-    setCurrent(0)
-    setCurrentName('')
 
-    let imported = 0, skipped = 0, errors = 0
-    const details: string[] = []
+    try {
+      const res  = await fetch('/api/steam/import', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ userId, games: gamesList, steamId }),
+      })
+      const data = await res.json()
 
-    for (let i = 0; i < gamesList.length; i++) {
-      const sg = gamesList[i]
-      setCurrentName(sg.name)
-      try {
-        // Cover Steam directe — portrait 600x900, parfaite pour les cards
-        const steamCoverUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${sg.appid}/library_600x900.jpg`
+      if (!res.ok || data.error) {
+        setErrorMsg(data.error || 'Erreur lors de l\'import.')
+        setStep('error')
+        return
+      }
 
-        // 1. Cherche dans notre DB par nom
-        const { data: existing } = await supabase
-          .from('games')
-          .select('id, cover_url')
-          .ilike('name', sg.name)
-          .maybeSingle()
-
-        let gameId = existing?.id ?? null
-
-        // 2. Enrichit avec RAWG (genres, metacritic) + cover Steam en priorité
-        const rawg = await searchRawg(sg.name)
-        if (rawg) {
-          const { data: upserted } = await supabase
-            .from('games')
-            .upsert({
-              rawg_id:     rawg.rawgId,
-              name:        rawg.name || sg.name,
-              cover_url:   steamCoverUrl,
-              genres:      rawg.genres ?? [],
-              released_at: rawg.released,
-              metacritic:  rawg.metacritic,
-            }, { onConflict: 'rawg_id', ignoreDuplicates: false })
-            .select('id')
-            .single()
-          if (upserted?.id) gameId = upserted.id
-        } else if (!gameId) {
-          // Pas trouvé sur RAWG → insert minimal avec cover Steam quand même
-          const { data: ins, error: insErr } = await supabase
-            .from('games')
-            .insert({ name: sg.name, cover_url: steamCoverUrl, genres: [] })
-            .select('id')
-            .single()
-          if (insErr || !ins) { errors++; details.push(`${sg.name}: ${insErr?.message ?? 'insert échoué'}`); setCurrent(i + 1); setProgress(Math.round(((i + 1) / gamesList.length) * 100)); continue }
-          gameId = ins.id
-        } else if (gameId && !existing?.cover_url) {
-          // Existe mais sans cover → on ajoute la cover Steam
-          await supabase.from('games').update({ cover_url: steamCoverUrl }).eq('id', gameId)
-        }
-
-        // 4. Déjà en bibliothèque ?
-        const { data: inLib } = await supabase.from('library').select('id').eq('user_id', userId).eq('game_id', gameId).maybeSingle()
-        if (inLib) { skipped++ }
-        else {
-          const status = (sg.playtime_forever ?? 0) > 60 ? 'playing' : 'backlog'
-          const { error: libErr } = await supabase.from('library').insert({ user_id: userId, game_id: gameId, status })
-          if (libErr) {
-            if (libErr.code === '23505') skipped++
-            else { errors++; details.push(`${sg.name}: ${libErr.message}`) }
-          } else { imported++ }
-        }
-      } catch (e: any) { errors++; details.push(`${sg.name}: ${e?.message ?? 'erreur'}`) }
-
-      setCurrent(i + 1)
-      setProgress(Math.round(((i + 1) / gamesList.length) * 100))
-      if (i % 5 === 4) await new Promise(r => setTimeout(r, 200))
+      setResult(data)
+      setStep('done')
+      router.refresh()
+    } catch {
+      setErrorMsg('Erreur réseau pendant l\'import.')
+      setStep('error')
     }
-
-    await supabase.from('profiles').update({ steam_id: steamId }).eq('id', userId)
-    setResult({ imported, skipped, errors, details })
-    setCurrentName('')
-    setStep('done')
-    router.refresh()
   }
 
   const label = (min: number) => {
@@ -172,7 +104,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
         </p>
       </div>
 
-      {/* FETCHING (auto-sync) */}
+      {/* FETCHING */}
       {step === 'fetching' && (
         <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-8 shadow-card text-center">
           <div className="w-10 h-10 border-2 border-amber border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -225,7 +157,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
                 <h2 className="font-serif text-base font-black text-ink dark:text-ink-dark">
                   <em className="italic text-amber">{games.length} jeux</em> trouvés
                 </h2>
-                <p className="text-xs text-ink-muted dark:text-ink-subtle mt-0.5">Covers récupérées automatiquement via RAWG</p>
+                <p className="text-xs text-ink-muted dark:text-ink-subtle mt-0.5">Import + enrichissement RAWG côté serveur</p>
               </div>
               <button onClick={() => runImport(games)} className="bg-amber text-black px-5 py-2.5 rounded-[var(--radius-sm)] text-sm font-semibold hover:opacity-90 transition-opacity">
                 Importer tout
@@ -246,21 +178,23 @@ export default function SteamImportClient({ userId }: { userId: string }) {
               {games.length > 50 && <p className="text-xs text-center text-ink-subtle py-3">+ {games.length - 50} autres</p>}
             </div>
           </div>
-          {!autoSyncId && <button onClick={() => setStep('input')} className="text-sm text-ink-muted hover:text-amber transition-colors text-center">← Changer de Steam ID</button>}
+          {!autoSyncId && (
+            <button onClick={() => setStep('input')} className="text-sm text-ink-muted hover:text-amber transition-colors text-center">← Changer de Steam ID</button>
+          )}
         </div>
       )}
 
       {/* IMPORTING */}
       {step === 'importing' && (
         <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-8 shadow-card text-center">
-          <div className="text-5xl mb-5">⚙️</div>
+          <div className="w-12 h-12 border-2 border-amber border-t-transparent rounded-full animate-spin mx-auto mb-5" />
           <h2 className="font-serif text-xl font-black mb-2 text-ink dark:text-ink-dark">Import en cours…</h2>
-          <p className="text-sm text-ink-muted dark:text-ink-subtle mb-1">Récupération des covers via RAWG</p>
-          {currentName && <p className="text-xs text-amber font-mono mb-5 truncate px-4">{currentName}</p>}
-          <div className="h-2.5 bg-surface dark:bg-surface-dark rounded-full overflow-hidden mb-3">
-            <div className="h-full bg-amber rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="text-xs font-mono text-ink-subtle">{progress}% — {current} / {games.length}</p>
+          <p className="text-sm text-ink-muted dark:text-ink-subtle mb-1">
+            Enrichissement RAWG et import de {games.length} jeux
+          </p>
+          <p className="text-xs text-ink-subtle font-serif italic mt-3">
+            Cela peut prendre quelques secondes, ne ferme pas la page.
+          </p>
         </div>
       )}
 
@@ -272,7 +206,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
             <h2 className="font-serif text-2xl font-black mb-2 text-ink dark:text-ink-dark">
               {autoSyncId ? 'Sync terminée !' : 'Import terminé !'}
             </h2>
-            <p className="text-sm text-ink-muted dark:text-ink-subtle mb-8">Ta bibliothèque a été mise à jour avec les covers</p>
+            <p className="text-sm text-ink-muted dark:text-ink-subtle mb-8">Ta bibliothèque a été mise à jour</p>
             <div className="grid grid-cols-3 gap-3 mb-8">
               <div className="bg-forest-bg rounded-[var(--radius-sm)] p-4">
                 <div className="font-serif text-2xl font-black text-forest">{result.imported}</div>
@@ -287,6 +221,12 @@ export default function SteamImportClient({ userId }: { userId: string }) {
                 <div className="text-[10px] font-semibold text-amber/70 uppercase tracking-wider mt-1">Erreurs</div>
               </div>
             </div>
+            {result.imported > 0 && (
+              <div className="bg-amber-bg dark:bg-amber-bg-dark rounded-[var(--radius-sm)] p-3 mb-5 inline-flex items-center gap-2">
+                <span className="text-amber font-bold text-sm">+{Math.min(result.imported * 5, 200)} XP</span>
+                <span className="text-[11px] text-amber/70">pour l'import Steam</span>
+              </div>
+            )}
             <div className="flex gap-3 justify-center">
               <a href="/library" className="inline-flex items-center gap-2 bg-ink dark:bg-card-dark text-paper dark:text-ink-dark px-6 py-3 rounded-[var(--radius-sm)] text-sm font-semibold hover:bg-amber hover:text-black transition-colors">
                 Voir ma bibliothèque →

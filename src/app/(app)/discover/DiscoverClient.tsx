@@ -1,6 +1,27 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { Search, SlidersHorizontal, X, Plus, Check } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+
+interface SearchResult {
+  igdbId: number
+  existingId: string | null
+  name: string
+  slug: string
+  coverUrl: string | null
+  genres: string[]
+  platforms: string[]
+  released: string | null
+  metacritic: number | null
+}
+
+const STATUSES = [
+  { value: 'backlog',   label: 'À faire',   color: '#f59e0b' },
+  { value: 'playing',  label: 'En cours',   color: '#3b82f6' },
+  { value: 'completed',label: 'Terminé',    color: '#22c55e' },
+  { value: 'dropped',  label: 'Abandonné',  color: '#ef4444' },
+]
 
 interface Props {
   userId: string
@@ -9,308 +30,198 @@ interface Props {
   myGenres: string[]
 }
 
-const ALL_GENRES = ['Tous', 'RPG', 'Action', 'Aventure', 'Roguelite', 'Platformer', 'Indé', 'Puzzle', 'Racing', 'Sports']
+export default function DiscoverClient({ userId }: Props) {
+  const supabase = createClient()
 
-function getUniqueGames(items: any[]) {
-  const seen = new Set()
-  return items.filter(item => {
-    const game = item.games
-    if (!game || seen.has(game.id)) return false
-    seen.add(game.id)
-    return true
-  })
-}
+  const [search,       setSearch]       = useState('')
+  const [results,      setResults]      = useState<SearchResult[]>([])
+  const [searching,    setSearching]    = useState(false)
+  const [focused,      setFocused]      = useState(false)
 
-function avgRating(items: any[], gameId: string) {
-  const rated = items.filter(i => i.games?.id === gameId && i.rating)
-  if (!rated.length) return null
-  return (rated.reduce((a: number, i: any) => a + i.rating, 0) / rated.length).toFixed(1)
-}
+  // Quick-add panel
+  const [selected,     setSelected]     = useState<SearchResult | null>(null)
+  const [status,       setStatus]       = useState('backlog')
+  const [adding,       setAdding]       = useState(false)
+  const [addedIds,     setAddedIds]     = useState<Set<number>>(new Set())
 
-export default function DiscoverClient({ userId, topGames, recentGames, myGenres }: Props) {
-  const [activeGenre,   setActiveGenre]   = useState('Tous')
-  const [searchQuery,   setSearchQuery]   = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [searching,     setSearching]     = useState(false)
-  const [addedGames,    setAddedGames]    = useState<Set<number>>(new Set())
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  async function handleSearch(q: string) {
-    setSearchQuery(q)
-    if (q.length < 2) { setSearchResults([]); return }
+  function handleSearch(q: string) {
+    setSearch(q)
+    setSelected(null)
+    if (q.length < 2) { setResults([]); return }
     if (timeout.current) clearTimeout(timeout.current)
     setSearching(true)
     timeout.current = setTimeout(async () => {
-      const res  = await fetch(`/api/games/search?q=${encodeURIComponent(q)}`)
-      const data = await res.json()
-      setSearchResults(Array.isArray(data) ? data : [])
-      setSearching(false)
+      try {
+        const res  = await fetch(`/api/games/search?q=${encodeURIComponent(q)}`)
+        const data = await res.json()
+        setResults(Array.isArray(data) ? data : [])
+      } finally { setSearching(false) }
     }, 350)
   }
 
-  function clearSearch() {
-    setSearchQuery('')
-    setSearchResults([])
-    if (timeout.current) clearTimeout(timeout.current)
-    setSearching(false)
-  }
-
-  async function addToLibrary(game: any) {
+  async function handleAdd() {
+    if (!selected || adding) return
+    setAdding(true)
     try {
-      const res = await fetch('/api/games/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawgId: game.rawgId, name: game.name, coverUrl: game.coverUrl, genres: game.genres, released: game.released, metacritic: game.metacritic }),
-      })
-      if (res.ok) setAddedGames(prev => new Set([...prev, game.rawgId]))
-    } catch {}
+      let gameId: string
+      const { data: existing } = await supabase
+        .from('games').select('id').eq('igdb_id', selected.igdbId).maybeSingle()
+
+      if (existing?.id) {
+        gameId = existing.id
+      } else if (selected.existingId) {
+        gameId = selected.existingId
+      } else {
+        const { data: newGame } = await supabase.from('games').insert({
+          igdb_id:     selected.igdbId,
+          name:        selected.name,
+          slug:        selected.slug,
+          cover_url:   selected.coverUrl,
+          genres:      selected.genres,
+          platforms:   selected.platforms ?? [],
+          released_at: selected.released,
+          metacritic:  selected.metacritic,
+        }).select('id').single()
+        gameId = newGame!.id
+      }
+
+      await supabase.from('library').upsert(
+        { user_id: userId, game_id: gameId, status },
+        { onConflict: 'user_id,game_id' }
+      )
+      await supabase.from('xp_transactions').insert({ user_id: userId, amount: 10, reason: 'game_added' })
+      setAddedIds(prev => new Set([...prev, selected.igdbId]))
+      setSelected(null)
+      setSearch('')
+      setResults([])
+    } finally { setAdding(false) }
   }
 
-  const uniqueTop    = getUniqueGames(topGames)
-  const uniqueRecent = getUniqueGames(recentGames)
-  const filteredTop  = activeGenre === 'Tous' ? uniqueTop : uniqueTop.filter(i => i.games?.genres?.some((g: string) => g.toLowerCase().includes(activeGenre.toLowerCase())))
-  const suggestions  = uniqueTop.filter(i => i.games?.genres?.some((g: string) => myGenres.includes(g))).slice(0, 6)
-
-  const isSearching = searchQuery.length >= 2
+  const showDropdown = focused && search.length >= 2
 
   return (
-    <div className="flex h-full">
+    <div className="min-h-screen pt-24 pb-16">
+      <div className="container mx-auto px-4 max-w-2xl space-y-4">
 
-      {/* ═══ MAIN ═══ */}
-      <div className="flex-1 overflow-y-auto min-w-0">
-        <div className="p-4 lg:p-7">
+        <div>
+          <h1 className="text-3xl font-bold text-ink dark:text-ink-dark mb-1">Ajouter un jeu</h1>
+          <p className="text-sm text-ink-subtle">Recherchez un jeu et ajoutez-le directement à votre bibliothèque.</p>
+        </div>
 
-          {/* Header */}
-          <div className="mb-6">
-            <p className="text-[10px] font-semibold text-ink-subtle uppercase tracking-widest mb-1.5">Découverte</p>
-            <h1 className="font-serif text-3xl lg:text-4xl font-black tracking-tight leading-none mb-1.5 text-ink dark:text-ink-dark">
-              <em className="italic text-amber">Découvrir</em> de nouveaux jeux
-            </h1>
-            <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic">
-              Basé sur ta communauté GameTrack
-            </p>
-          </div>
+        {/* Search bar */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle z-10" />
+          {searching && (
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin z-10" />
+          )}
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            placeholder="Rechercher un jeu…"
+            className="w-full pl-11 pr-11 py-4 rounded-xl glass text-ink dark:text-ink-dark placeholder:text-ink-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+          />
 
-          {/* ── SEARCH BOX PROMINENT ── */}
-          <div className="relative mb-6">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-subtle pointer-events-none text-lg">⌕</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => handleSearch(e.target.value)}
-              placeholder="Rechercher un jeu sur RAWG.io…"
-              className="w-full bg-card dark:bg-card-dark text-ink dark:text-ink-dark border border-surface dark:border-surface-dark rounded-[var(--radius-md)] pl-11 pr-10 py-3.5 text-sm outline-none transition-all placeholder:text-ink-subtle focus:border-amber focus:ring-2 focus:ring-amber/20 shadow-card"
-            />
-            {/* Spinner ou bouton X */}
-            {searching && (
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-amber border-t-transparent rounded-full animate-spin" />
-            )}
-            {!searching && searchQuery && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-surface dark:bg-surface-dark flex items-center justify-center text-ink-muted hover:text-ink dark:hover:text-ink-dark hover:bg-hover dark:hover:bg-hover-dark transition-all text-sm"
-              >
-                ✕
-              </button>
-            )}
-
-            {/* Résultats dropdown */}
-            {isSearching && !searching && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-card dark:bg-card-dark rounded-[var(--radius-md)] shadow-modal border border-surface dark:border-surface-dark z-50 overflow-hidden"
-                style={{ maxHeight: '360px', overflowY: 'auto' }}>
-                {searchResults.map((g, i) => {
-                  const added = addedGames.has(g.rawgId)
-                  return (
-                    <div key={g.rawgId}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-surface dark:hover:bg-surface-dark transition-colors"
-                      style={{ borderTop: i > 0 ? '1px solid var(--color-surface)' : undefined }}>
-                      <div className="w-12 h-8 rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0 bg-surface dark:bg-surface-dark">
-                        {g.coverUrl
-                          ? <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover"/>
-                          : <div className="w-full h-full flex items-center justify-center text-base">🎮</div>
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-serif text-sm font-bold truncate text-ink dark:text-ink-dark">{g.name}</p>
-                        <p className="text-[11px] text-ink-subtle">
-                          {[g.genres?.[0], g.released?.split('-')[0], g.metacritic ? `${g.metacritic} MC` : null].filter(Boolean).join(' · ')}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => !added && addToLibrary(g)}
-                        disabled={added}
-                        className="flex-shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-[var(--radius-sm)] transition-all"
-                        style={{
-                          background: added ? 'var(--color-forest-bg)' : 'var(--color-ink)',
-                          color:      added ? 'var(--color-forest)'    : 'var(--color-paper)',
-                        }}
-                      >
-                        {added ? '✓' : '+ Ajouter'}
-                      </button>
+          {/* Dropdown results */}
+          {showDropdown && results.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden shadow-2xl max-h-96 overflow-y-auto bg-background border border-border" style={{ zIndex: 9999 }}>
+              {results.map(g => {
+                const isAdded = addedIds.has(g.igdbId)
+                return (
+                  <button key={g.igdbId}
+                    onMouseDown={e => { e.preventDefault(); setSelected(g); setResults([]); setFocused(false) }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-surface/50 dark:border-surface-dark/50 last:border-0 ${
+                      selected?.igdbId === g.igdbId
+                        ? 'bg-primary/10'
+                        : 'hover:bg-surface dark:hover:bg-surface-dark'
+                    }`}>
+                    <div className="w-9 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-surface dark:bg-surface-dark">
+                      {g.coverUrl
+                        ? <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover object-top" />
+                        : <div className="w-full h-full flex items-center justify-center text-sm">🎮</div>
+                      }
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-ink dark:text-ink-dark truncate">{g.name}</p>
+                      <p className="text-xs text-ink-subtle">
+                        {[g.released?.split('-')[0], g.genres[0]].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    {isAdded
+                      ? <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                      : <Plus className="w-4 h-4 text-ink-subtle flex-shrink-0" />
+                    }
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
-            {/* Aucun résultat */}
-            {isSearching && !searching && searchResults.length === 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-card dark:bg-card-dark rounded-[var(--radius-md)] shadow-modal border border-surface dark:border-surface-dark z-50 px-4 py-6 text-center">
-                <p className="text-sm text-ink-muted dark:text-ink-subtle">Aucun jeu trouvé pour <strong className="text-ink dark:text-ink-dark">"{searchQuery}"</strong></p>
-              </div>
-            )}
-          </div>
+          {showDropdown && !searching && results.length === 0 && !selected && (
+            <div className="absolute top-full left-0 right-0 mt-2 glass rounded-xl p-6 text-center z-50">
+              <p className="text-sm text-ink-subtle">Aucun résultat pour "{search}"</p>
+            </div>
+          )}
+        </div>
 
-          {/* ── Contenu principal (masqué pendant la recherche active) ── */}
-          {!isSearching && (
-            <>
-              {/* Genre filters */}
-              <div className="flex gap-2 mb-7 overflow-x-auto pb-1">
-                {ALL_GENRES.map(g => (
-                  <button key={g} onClick={() => setActiveGenre(g)}
-                    className="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 shadow-card"
-                    style={{ background: activeGenre === g ? 'var(--color-ink)' : 'var(--color-card)', color: activeGenre === g ? 'var(--color-paper)' : 'var(--color-ink-subtle)' }}>
-                    {g}
+        {/* Quick-add panel */}
+        {selected && (
+          <div className="glass rounded-xl overflow-hidden">
+            {/* Game info */}
+            <div className="flex gap-4 p-4 border-b border-surface/50 dark:border-surface-dark/50">
+              <div className="w-14 rounded-lg overflow-hidden flex-shrink-0" style={{ height: '74px' }}>
+                {selected.coverUrl
+                  ? <img src={selected.coverUrl} alt={selected.name} className="w-full h-full object-cover object-top" />
+                  : <div className="w-full h-full bg-surface dark:bg-surface-dark flex items-center justify-center text-xl">🎮</div>
+                }
+              </div>
+              <div className="flex-1 min-w-0 py-1">
+                <p className="font-bold text-ink dark:text-ink-dark line-clamp-1">{selected.name}</p>
+                <p className="text-xs text-ink-subtle mt-0.5">
+                  {[selected.released?.split('-')[0], selected.genres[0]].filter(Boolean).join(' · ')}
+                </p>
+                {selected.platforms?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {selected.platforms.slice(0, 4).map(p => (
+                      <span key={p} className="text-[10px] px-1.5 py-0.5 rounded bg-surface dark:bg-surface-dark text-ink-subtle">{p}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setSelected(null)} className="self-start text-ink-subtle hover:text-ink dark:hover:text-ink-dark p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Status + Add */}
+            <div className="p-4 flex items-center gap-3 flex-wrap">
+              <p className="text-xs text-ink-subtle font-medium">Statut :</p>
+              <div className="flex gap-2 flex-1">
+                {STATUSES.map(s => (
+                  <button key={s.value} onClick={() => setStatus(s.value)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                    style={{
+                      background: status === s.value ? `${s.color}20` : 'var(--color-surface)',
+                      color: status === s.value ? s.color : 'var(--color-ink-muted)',
+                      outline: status === s.value ? `1.5px solid ${s.color}` : 'none',
+                    }}>
+                    {s.label}
                   </button>
                 ))}
               </div>
-
-              {/* Top jeux */}
-              {filteredTop.length > 0 && (
-                <div className="mb-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="font-serif text-lg font-black text-ink dark:text-ink-dark">Top jeux de la <em className="italic text-amber">communauté</em></h2>
-                    <div className="flex-1 h-px bg-surface dark:bg-surface-dark" />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                    {filteredTop.slice(0, 3).map((item, idx) => {
-                      const game = item.games
-                      const avg  = avgRating(topGames, game.id)
-                      const year = game.released_at ? new Date(game.released_at).getFullYear() : null
-                      const rankColor = idx === 0 ? 'var(--color-amber-mid)' : idx === 1 ? 'var(--color-ink-subtle)' : 'var(--color-amber)'
-                      return (
-                        <div key={game.id} className="bg-card dark:bg-card-dark rounded-[var(--radius-md)] overflow-hidden cursor-pointer hover:-translate-y-1 transition-all hover:shadow-hover shadow-card">
-                          <div className="relative h-36 bg-surface dark:bg-surface-dark">
-                            {game.cover_url ? <img src={game.cover_url} alt={game.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-4xl">🎮</div>}
-                            <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 55%)' }} />
-                            <span className="absolute top-2 left-2 font-serif text-xl font-black" style={{ color: rankColor, textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>{String(idx + 1).padStart(2, '0')}</span>
-                            {avg && <span className="absolute bottom-2 left-2 text-xs text-white font-bold font-mono" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>★ {avg}</span>}
-                          </div>
-                          <div className="p-3">
-                            <p className="font-serif text-sm font-black truncate text-ink dark:text-ink-dark">{game.name}</p>
-                            <div className="flex items-center justify-between mt-1">
-                              <p className="text-[10px] text-ink-subtle uppercase tracking-wider">{game.genres?.[0]}</p>
-                              {year && <p className="text-[10px] text-ink-subtle">{year}</p>}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {filteredTop.slice(3).map((item, idx) => {
-                      const game = item.games
-                      const avg  = avgRating(topGames, game.id)
-                      return (
-                        <div key={game.id} className="flex items-center gap-4 bg-card dark:bg-card-dark rounded-[var(--radius-sm)] px-4 py-3 cursor-pointer hover:bg-hover dark:hover:bg-hover-dark transition-colors shadow-card">
-                          <span className="font-serif text-sm font-bold text-ink-subtle w-6 text-right flex-shrink-0">{String(idx + 4).padStart(2, '0')}</span>
-                          <div className="w-10 h-7 rounded-lg overflow-hidden flex-shrink-0 bg-surface dark:bg-surface-dark">
-                            {game.cover_url ? <img src={game.cover_url} alt={game.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-sm">🎮</div>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-serif text-sm font-bold truncate text-ink dark:text-ink-dark">{game.name}</p>
-                            <p className="text-[10px] text-ink-subtle uppercase tracking-wider">{game.genres?.[0]}</p>
-                          </div>
-                          {avg && <span className="text-xs font-bold font-mono text-amber flex-shrink-0">★ {avg}</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Suggestions */}
-              {suggestions.length > 0 && myGenres.length > 0 && (
-                <div className="mb-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="font-serif text-lg font-black text-ink dark:text-ink-dark">Suggestions <em className="italic text-amber">pour toi</em></h2>
-                    <div className="flex-1 h-px bg-surface dark:bg-surface-dark" />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {suggestions.map((item: any) => {
-                      const game = item.games
-                      const avg  = avgRating(topGames, game.id)
-                      return (
-                        <div key={game.id} className="bg-card dark:bg-card-dark rounded-[var(--radius-md)] p-4 cursor-pointer hover:-translate-y-1 transition-all hover:shadow-hover shadow-card flex items-center gap-3">
-                          <div className="w-14 h-10 rounded-[var(--radius-sm)] overflow-hidden bg-surface dark:bg-surface-dark flex-shrink-0">
-                            {game.cover_url ? <img src={game.cover_url} alt={game.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-xl">🎮</div>}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-serif text-sm font-black truncate text-ink dark:text-ink-dark">{game.name}</p>
-                            <p className="text-[10px] text-ink-subtle uppercase tracking-wider">{game.genres?.[0]}</p>
-                          </div>
-                          {avg && <span className="text-xs font-bold font-mono text-amber flex-shrink-0">★ {avg}</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Récents */}
-              {uniqueRecent.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="font-serif text-lg font-black text-ink dark:text-ink-dark">Récemment <em className="italic text-amber">ajoutés</em></h2>
-                    <div className="flex-1 h-px bg-surface dark:bg-surface-dark" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {uniqueRecent.slice(0, 6).map((item: any) => {
-                      const game = item.games
-                      const year = game.released_at ? new Date(game.released_at).getFullYear() : null
-                      return (
-                        <div key={game.id} className="flex items-center gap-3 bg-card dark:bg-card-dark rounded-[var(--radius-sm)] px-4 py-3 shadow-card">
-                          <div className="w-10 h-7 rounded-lg overflow-hidden bg-surface dark:bg-surface-dark flex-shrink-0">
-                            {game.cover_url ? <img src={game.cover_url} alt={game.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-sm">🎮</div>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-serif text-sm font-bold truncate text-ink dark:text-ink-dark">{game.name}</p>
-                            <p className="text-[10px] text-ink-subtle uppercase">{game.genres?.[0]}</p>
-                          </div>
-                          {year && <span className="text-[10px] text-ink-subtle flex-shrink-0">{year}</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {topGames.length === 0 && recentGames.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <div className="text-6xl mb-5">🔭</div>
-                  <h3 className="font-serif text-2xl font-black mb-2 text-ink dark:text-ink-dark">Rien à découvrir pour l'instant</h3>
-                  <p className="text-ink-muted dark:text-ink-subtle text-sm max-w-xs">Ajoute des jeux et invite des amis</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="hidden xl:flex w-72 flex-shrink-0 border-l border-surface dark:border-surface-dark overflow-y-auto flex-col gap-4 p-5 bg-side dark:bg-side-dark">
-        {myGenres.length > 0 && (
-          <div className="bg-card dark:bg-card-dark rounded-[var(--radius-md)] p-4 shadow-card">
-            <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark">
-              Genres <em className="italic text-amber">favoris</em>
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {[...new Set(myGenres)].slice(0, 8).map(g => (
-                <span key={g} onClick={() => setActiveGenre(g)}
-                  className="text-[10px] font-semibold bg-amber-bg dark:bg-amber-bg-dark text-amber px-2.5 py-1 rounded-full cursor-pointer hover:bg-amber hover:text-black transition-colors">
-                  {g}
-                </span>
-              ))}
+              <button onClick={handleAdd} disabled={adding}
+                className="px-5 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2 flex-shrink-0">
+                {adding
+                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <><Plus className="w-4 h-4" /> Ajouter · +10 XP</>
+                }
+              </button>
             </div>
           </div>
         )}

@@ -4,6 +4,53 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { PLATFORM_SHORT, RATING_LABELS, STATUS_CONFIG, grantDailyXp } from '@/lib/gametrack'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Game {
+  id: string
+  name: string
+  cover_url: string | null
+  genres: string[] | null
+  platforms: string[] | null
+  released_at: string | null
+  metacritic: number | null
+}
+
+interface Profile {
+  id: string
+  username: string
+  avatar_url: string | null
+}
+
+interface LibraryRow {
+  id: string
+  status: string
+  rating: number | null
+  review: string | null
+  created_at: string
+  completed_at: string | null
+  games: Game
+  profiles?: Profile | Profile[] | null
+}
+
+interface GameStats {
+  avg_rating: string | null
+  player_count: number
+  completed_count: number
+  review_count: number
+}
+
+interface Props {
+  entry: LibraryRow
+  userId: string
+  communityReviews: (LibraryRow & { like_count?: number })[]
+  friendActivity: LibraryRow[]
+  gameStats: GameStats | null
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUSES = [
   { value: 'backlog',   label: '🕐 À commencer', activeBg: 'var(--color-surface)',    activeText: 'var(--color-ink-muted)' },
@@ -12,64 +59,80 @@ const STATUSES = [
   { value: 'dropped',   label: '✕ Abandonné',     activeBg: 'var(--color-crimson-bg)', activeText: 'var(--color-crimson)' },
 ]
 
-const PLATFORM_SHORT: Record<string, string> = {
-  'PlayStation 5': 'PS5', 'PlayStation 4': 'PS4', 'Xbox One': 'XBO',
-  'Xbox Series S/X': 'XSX', 'Nintendo Switch': 'NSW', 'PC': 'PC',
-}
-
-const RATING_LABELS = ['', 'Nul', 'Bof', 'Bien', 'Super', "Chef-d'œuvre"]
-
-interface Props {
-  entry: any
-  userId: string
-  communityReviews: any[]
-  friendActivity: any[]
-  gameStats: any | null
-}
-
-function getUsername(profiles: any) {
-  if (!profiles) return 'Joueur'
-  return Array.isArray(profiles) ? (profiles[0]?.username ?? 'Joueur') : (profiles.username ?? 'Joueur')
-}
-
-function getProfileId(profiles: any) {
+function resolveProfile(profiles: Profile | Profile[] | null | undefined): Profile | null {
   if (!profiles) return null
-  return Array.isArray(profiles) ? profiles[0]?.id : profiles.id
+  return Array.isArray(profiles) ? (profiles[0] ?? null) : profiles
 }
+
+function getUsername(profiles: Profile | Profile[] | null | undefined): string {
+  return resolveProfile(profiles)?.username ?? 'Joueur'
+}
+
+function getProfileId(profiles: Profile | Profile[] | null | undefined): string | null {
+  return resolveProfile(profiles)?.id ?? null
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GameDetailClient({ entry, userId, communityReviews, friendActivity, gameStats }: Props) {
   const game   = entry.games
   const router = useRouter()
   const supabase = createClient()
 
-  const [status,            setStatus]            = useState(entry.status)
-  const [rating,            setRating]            = useState(entry.rating || 0)
-  const [review,            setReview]            = useState(entry.review || '')
-  const [saving,            setSaving]            = useState(false)
-  const [saved,             setSaved]             = useState(false)
-  const [deleting,          setDeleting]          = useState(false)
-  const [showDelete,        setShowDelete]        = useState(false)
-  const [communityTab,      setCommunityTab]      = useState<'friends' | 'community'>('friends')
+  const [status,       setStatus]       = useState(entry.status)
+  const [rating,       setRating]       = useState(entry.rating ?? 0)
+  const [review,       setReview]       = useState(entry.review ?? '')
+  const [saving,       setSaving]       = useState(false)
+  const [saved,        setSaved]        = useState(false)
+  const [deleting,     setDeleting]     = useState(false)
+  const [showDelete,   setShowDelete]   = useState(false)
+  const [communityTab, setCommunityTab] = useState<'friends' | 'community'>('friends')
 
   const year      = game?.released_at ? new Date(game.released_at).getFullYear() : null
-  const platforms = game?.platforms?.slice(0, 4) || []
-  const friendsWhoPlayed    = (friendActivity || []).filter(f => f.profiles)
-  const avgCommunityRating  = communityReviews.filter(r => r.rating).length > 0
-    ? (communityReviews.filter(r => r.rating).reduce((a: number, r: any) => a + r.rating, 0) / communityReviews.filter(r => r.rating).length).toFixed(1)
-    : null
+  const platforms = game?.platforms?.slice(0, 4) ?? []
+
+  const friendsWhoPlayed = friendActivity.filter(f => f.profiles)
+
+  const avgCommunityRating = (() => {
+    const rated = communityReviews.filter(r => r.rating != null)
+    if (rated.length === 0) return null
+    return (rated.reduce((a, r) => a + (r.rating ?? 0), 0) / rated.length).toFixed(1)
+  })()
+
   const topCommunityReviews = [...communityReviews]
     .filter(r => r.review)
-    .sort((a: any, b: any) => (b.like_count || 0) - (a.like_count || 0))
+    .sort((a, b) => ((b as any).like_count ?? 0) - ((a as any).like_count ?? 0))
 
   async function handleSave() {
     setSaving(true)
+
+    const wasCompleted = entry.status === 'completed'
+    const hadReview    = (entry.review ?? '').trim().length > 0
+    const hadRating    = entry.rating != null && entry.rating > 0
+
     await supabase.from('library').update({
-      status, rating: rating || null, review: review.trim() || null,
-      updated_at: new Date().toISOString(),
-      completed_at: status === 'completed' ? new Date().toISOString() : null,
+      status,
+      rating:       rating || null,
+      review:       review.trim() || null,
+      updated_at:   new Date().toISOString(),
+      completed_at: status === 'completed' ? (entry.completed_at ?? new Date().toISOString()) : null,
     }).eq('id', entry.id)
+
     await supabase.from('feed_events').insert({ user_id: userId, event_type: 'updated' })
-    setSaving(false); setSaved(true)
+
+    // ── Attribution XP ────────────────────────────────────────────────────────
+    if (status === 'completed' && !wasCompleted) {
+      await grantDailyXp(supabase, userId, 'complete_game')
+    }
+    if (review.trim().length > 0 && !hadReview) {
+      await grantDailyXp(supabase, userId, 'write_review')
+    }
+    if (rating > 0 && !hadRating) {
+      await grantDailyXp(supabase, userId, 'rate_game')
+    }
+
+    setSaving(false)
+    setSaved(true)
     setTimeout(() => setSaved(false), 2000)
     router.refresh()
   }
@@ -104,7 +167,7 @@ export default function GameDetailClient({ entry, userId, communityReviews, frie
           )}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap gap-2 mb-2">
-              {game?.genres?.slice(0, 2).map((g: string) => (
+              {game?.genres?.slice(0, 2).map(g => (
                 <span key={g} className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)' }}>{g}</span>
               ))}
               {year && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)' }}>{year}</span>}
@@ -112,14 +175,13 @@ export default function GameDetailClient({ entry, userId, communityReviews, frie
             </div>
             <h1 className="font-serif text-2xl lg:text-4xl font-black text-white leading-tight mb-2">{game?.name}</h1>
             <div className="flex gap-1.5 flex-wrap">
-              {platforms.map((p: string) => (
+              {platforms.map(p => (
                 <span key={p} className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: 'rgba(0,0,0,0.4)', color: 'rgba(255,255,255,0.65)' }}>
                   {PLATFORM_SHORT[p] || p.slice(0, 4)}
                 </span>
               ))}
             </div>
           </div>
-          {/* Stats globales hero desktop */}
           {gameStats?.avg_rating && (
             <div className="hidden lg:flex flex-col items-end flex-shrink-0">
               <div className="font-serif text-2xl font-black text-amber">★ {gameStats.avg_rating}</div>
@@ -138,218 +200,275 @@ export default function GameDetailClient({ entry, userId, communityReviews, frie
             { v: gameStats.completed_count, l: 'Terminés' },
             { v: gameStats.review_count, l: 'Critiques' },
           ].map(s => (
-            <div key={s.l} className="bg-card dark:bg-card-dark px-3 py-2.5 text-center">
-              <div className="font-serif text-base font-black text-amber">{s.v}</div>
-              <div className="text-[9px] text-ink-subtle">{s.l}</div>
+            <div key={s.l} className="bg-card dark:bg-card-dark p-3 text-center">
+              <div className="font-serif text-lg font-black text-ink dark:text-ink-dark">{s.v}</div>
+              <div className="text-[9px] text-ink-subtle uppercase tracking-wider mt-0.5">{s.l}</div>
             </div>
           ))}
         </div>
       )}
 
       {/* ── Body ── */}
-      <div className="p-4 lg:p-8 max-w-5xl mx-auto pb-16">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="max-w-5xl mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
 
-          {/* LEFT */}
-          <div className="lg:col-span-2 flex flex-col gap-4">
+        {/* LEFT */}
+        <div className="flex flex-col gap-4">
+
+          {/* Édition */}
+          <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
+            <h2 className="font-serif text-base font-black mb-4 text-ink dark:text-ink-dark">
+              Mon <em className="italic text-amber">suivi</em>
+            </h2>
 
             {/* Status */}
-            <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-              <h2 className="font-serif text-base font-black mb-4 text-ink dark:text-ink-dark">
-                Statut dans ta <em className="italic text-amber">bibliothèque</em>
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="mb-5">
+              <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-2">Statut</p>
+              <div className="flex flex-wrap gap-2">
                 {STATUSES.map(s => (
-                  <button key={s.value} onClick={() => setStatus(s.value)}
-                    className="py-3 px-4 rounded-[var(--radius-sm)] text-sm font-semibold transition-all text-left"
-                    style={{ background: status === s.value ? s.activeBg : 'var(--color-surface)', color: status === s.value ? s.activeText : 'var(--color-ink-subtle)', transform: status === s.value ? 'scale(1.02)' : 'scale(1)', fontWeight: status === s.value ? 700 : 500 }}>
+                  <button
+                    key={s.value}
+                    onClick={() => setStatus(s.value)}
+                    className="px-4 py-2 rounded-[var(--radius-sm)] text-sm font-semibold transition-all"
+                    style={{
+                      background: status === s.value ? s.activeBg   : 'var(--color-surface)',
+                      color:      status === s.value ? s.activeText  : 'var(--color-ink-muted)',
+                    }}
+                  >
                     {s.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Rating */}
-            <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-              <h2 className="font-serif text-base font-black mb-3 text-ink dark:text-ink-dark">Ta <em className="italic text-amber">note</em></h2>
-              <div className="flex items-center gap-3">
-                {[1,2,3,4,5].map(i => (
-                  <button key={i} onClick={() => setRating(rating === i ? 0 : i)}
-                    className="text-4xl transition-all hover:scale-110 active:scale-95 leading-none"
-                    style={{ color: i <= rating ? 'var(--color-amber)' : 'var(--color-surface)' }}>★</button>
+            {/* Note */}
+            <div className="mb-5">
+              <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-2">Note</p>
+              <div className="flex items-center gap-2">
+                {[1,2,3,4,5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setRating(rating === n ? 0 : n)}
+                    className="text-2xl transition-all hover:scale-110"
+                    style={{ color: n <= rating ? 'var(--color-amber)' : 'var(--color-surface-dark)' }}
+                  >
+                    ★
+                  </button>
                 ))}
-                {rating > 0 && <span className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic">{RATING_LABELS[rating]}</span>}
+                {rating > 0 && (
+                  <span className="text-sm font-serif italic text-ink-muted dark:text-ink-subtle ml-2">
+                    {RATING_LABELS[rating]}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Review */}
-            <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-serif text-base font-black text-ink dark:text-ink-dark">Ta <em className="italic text-amber">critique</em></h2>
-                {!entry.review && <span className="text-[10px] font-bold text-amber bg-amber-bg dark:bg-amber-bg-dark px-2 py-0.5 rounded-full">+20 XP</span>}
-              </div>
-              <textarea value={review} onChange={e => setReview(e.target.value)}
-                placeholder="Partage ton avis avec la communauté…" rows={4} maxLength={500}
-                className="w-full bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark rounded-[var(--radius-sm)] px-4 py-3 text-sm outline-none resize-none transition-all placeholder:text-ink-subtle font-serif"
-                style={{ boxShadow: review ? '0 0 0 2px var(--color-amber)' : undefined }}/>
-              {review && <p className="text-[10px] text-ink-subtle text-right mt-1">{review.length}/500</p>}
+            <div className="mb-5">
+              <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-2">
+                Critique {!entry.review && rating === 0 && <span className="text-amber normal-case font-normal">+50 XP</span>}
+              </p>
+              <textarea
+                value={review}
+                onChange={e => setReview(e.target.value)}
+                placeholder="Tes impressions sur ce jeu…"
+                rows={4}
+                className="w-full bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark rounded-[var(--radius-sm)] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-amber/30 placeholder:text-ink-subtle font-serif resize-none leading-relaxed"
+              />
             </div>
 
-            {/* Save / Delete */}
-            <div className="flex gap-3">
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 py-3 rounded-[var(--radius-sm)] text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ background: saved ? 'var(--color-forest-bg)' : 'var(--color-ink)', color: saved ? 'var(--color-forest)' : 'var(--color-paper)' }}>
-                {saving ? <><span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/>Sauvegarde…</> : saved ? '✓ Sauvegardé !' : 'Sauvegarder'}
+            {/* Actions */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-3 rounded-[var(--radius-sm)] text-sm font-semibold transition-all"
+                style={{
+                  background: saved ? 'var(--color-forest-bg)' : 'var(--color-ink)',
+                  color:      saved ? 'var(--color-forest)'    : 'var(--color-paper)',
+                }}
+              >
+                {saving ? 'Enregistrement…' : saved ? '✓ Enregistré !' : 'Enregistrer'}
               </button>
-              <button onClick={() => setShowDelete(true)} className="px-4 py-3 rounded-[var(--radius-sm)] text-sm font-semibold text-crimson hover:bg-crimson-bg transition-colors">
+              <button
+                onClick={() => setShowDelete(true)}
+                className="px-4 py-3 rounded-[var(--radius-sm)] text-sm font-semibold bg-surface dark:bg-surface-dark text-crimson hover:bg-crimson-bg transition-colors"
+              >
                 Supprimer
               </button>
             </div>
+          </div>
 
-            {/* ══ Amis + Communauté ══ */}
-            <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex gap-1 bg-surface dark:bg-surface-dark rounded-[var(--radius-sm)] p-1">
-                  {[
-                    { key: 'friends',   label: `👥 Amis (${friendsWhoPlayed.length})` },
-                    { key: 'community', label: `🌐 Communauté` },
-                  ].map(t => (
-                    <button key={t.key} onClick={() => setCommunityTab(t.key as any)}
-                      className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all"
-                      style={{ background: communityTab === t.key ? 'var(--color-ink)' : 'transparent', color: communityTab === t.key ? 'var(--color-paper)' : 'var(--color-ink-subtle)' }}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                {communityTab === 'community' && avgCommunityRating && (
-                  <span className="font-serif text-sm font-bold text-amber">★ {avgCommunityRating} moy.</span>
-                )}
+          {/* Avis */}
+          <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="font-serif text-base font-black text-ink dark:text-ink-dark">
+                Avis <em className="italic text-amber">
+                  {communityTab === 'friends' ? 'des amis' : 'communauté'}
+                </em>
+              </h2>
+              <div className="flex gap-1 bg-surface dark:bg-surface-dark rounded-[var(--radius-sm)] p-1 ml-auto">
+                {(['friends', 'community'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setCommunityTab(tab)}
+                    className="px-3 py-1 rounded-[6px] text-[11px] font-semibold transition-all"
+                    style={{
+                      background: communityTab === tab ? 'var(--color-ink)' : 'transparent',
+                      color:      communityTab === tab ? 'var(--color-paper)' : 'var(--color-ink-subtle)',
+                    }}
+                  >
+                    {tab === 'friends' ? 'Amis' : 'Tous'}
+                  </button>
+                ))}
               </div>
+              {avgCommunityRating && (
+                <span className="text-sm font-mono font-bold text-amber flex-shrink-0">★ {avgCommunityRating}</span>
+              )}
+            </div>
 
-              {/* Tab amis */}
-              {communityTab === 'friends' && (
-                <div className="flex flex-col gap-3">
-                  {friendsWhoPlayed.length === 0 ? (
-                    <p className="text-center py-6 text-sm text-ink-muted dark:text-ink-subtle font-serif italic">Aucun ami n'a joué à ce jeu</p>
-                  ) : friendsWhoPlayed.map((f: any, i: number) => (
+            {/* Tab amis */}
+            {communityTab === 'friends' && (
+              <div className="flex flex-col gap-3">
+                {friendsWhoPlayed.length === 0 ? (
+                  <p className="text-center py-6 text-sm text-ink-muted dark:text-ink-subtle font-serif italic">Aucun ami n'a joué à ce jeu</p>
+                ) : friendsWhoPlayed.map((f, i) => {
+                  const username  = getUsername(f.profiles)
+                  const profileId = getProfileId(f.profiles)
+                  const statusCfg = STATUS_CONFIG[f.status] || STATUS_CONFIG.backlog
+                  return (
                     <div key={i} className="flex items-start gap-3 pb-3 border-b border-surface dark:border-surface-dark last:border-0 last:pb-0">
                       <div className="w-8 h-8 rounded-full bg-amber flex items-center justify-center text-[11px] font-bold text-paper flex-shrink-0">
-                        {getUsername(f.profiles).slice(0, 2).toUpperCase()}
+                        {username.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <Link href={`/profile/${getProfileId(f.profiles)}`} className="text-sm font-semibold text-ink dark:text-ink-dark hover:text-amber transition-colors">
-                            {getUsername(f.profiles)}
+                          <Link href={`/profile/${profileId}`} className="text-sm font-semibold text-ink dark:text-ink-dark hover:text-amber transition-colors">
+                            {username}
                           </Link>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: f.status === 'completed' ? 'var(--color-forest-bg)' : f.status === 'playing' ? 'var(--color-amber-bg)' : 'var(--color-surface)', color: f.status === 'completed' ? 'var(--color-forest)' : f.status === 'playing' ? 'var(--color-amber)' : 'var(--color-ink-subtle)' }}>
-                              {f.status === 'completed' ? 'Terminé' : f.status === 'playing' ? 'En cours' : 'Backlog'}
+                              style={{ background: statusCfg.bg, color: statusCfg.color }}>
+                              {statusCfg.label}
                             </span>
                             {f.rating && <span className="text-xs font-mono text-amber">★ {f.rating * 2}/10</span>}
                           </div>
                         </div>
-                        {f.review && <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic leading-relaxed border-l-2 border-amber/30 pl-3">«&nbsp;{f.review}&nbsp;»</p>}
+                        {f.review && (
+                          <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic leading-relaxed border-l-2 border-amber/30 pl-3">
+                            «&nbsp;{f.review}&nbsp;»
+                          </p>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
+            )}
 
-              {/* Tab communauté */}
-              {communityTab === 'community' && (
-                <div className="flex flex-col gap-3">
-                  {topCommunityReviews.length === 0 ? (
-                    <p className="text-center py-6 text-sm text-ink-muted dark:text-ink-subtle font-serif italic">Aucune critique pour l'instant</p>
-                  ) : topCommunityReviews.map((r: any, i: number) => (
+            {/* Tab communauté */}
+            {communityTab === 'community' && (
+              <div className="flex flex-col gap-3">
+                {topCommunityReviews.length === 0 ? (
+                  <p className="text-center py-6 text-sm text-ink-muted dark:text-ink-subtle font-serif italic">Aucune critique pour l'instant</p>
+                ) : topCommunityReviews.map((r, i) => {
+                  const username = getUsername(r.profiles)
+                  return (
                     <div key={i} className="flex items-start gap-3 pb-3 border-b border-surface dark:border-surface-dark last:border-0 last:pb-0">
                       <div className="w-8 h-8 rounded-full bg-surface dark:bg-surface-dark flex items-center justify-center text-[11px] font-bold text-ink-muted flex-shrink-0">
-                        {getUsername(r.profiles).slice(0, 2).toUpperCase()}
+                        {username.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-semibold text-ink dark:text-ink-dark">{getUsername(r.profiles)}</span>
+                          <span className="text-sm font-semibold text-ink dark:text-ink-dark">{username}</span>
                           {r.rating && <span className="text-xs font-mono text-amber">★ {r.rating * 2}/10</span>}
                         </div>
-                        <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic leading-relaxed">«&nbsp;{r.review}&nbsp;»</p>
-                        {(r.like_count || 0) > 0 && <p className="text-[10px] text-ink-subtle mt-1.5">👍 {r.like_count} personnes ont trouvé ça utile</p>}
+                        <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic leading-relaxed">
+                          «&nbsp;{r.review}&nbsp;»
+                        </p>
+                        {((r as any).like_count ?? 0) > 0 && (
+                          <p className="text-[10px] text-ink-subtle mt-1.5">👍 {(r as any).like_count} personnes ont trouvé ça utile</p>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT */}
+        <div className="flex flex-col gap-4">
+
+          {/* Stats globales */}
+          {gameStats && (
+            <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
+              <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark">Stats <em className="italic text-amber">globales</em></h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { v: gameStats.avg_rating ? `★ ${gameStats.avg_rating}` : '—', l: 'Note moy.',  c: 'text-amber' },
+                  { v: gameStats.player_count,    l: 'Joueurs',   c: 'text-cobalt' },
+                  { v: gameStats.completed_count, l: 'Terminés',  c: 'text-forest' },
+                  { v: gameStats.review_count,    l: 'Critiques', c: 'text-ink-muted' },
+                ].map(s => (
+                  <div key={s.l} className="bg-surface dark:bg-surface-dark rounded-[var(--radius-sm)] p-3 text-center">
+                    <div className={`font-serif text-xl font-black ${s.c}`}>{s.v}</div>
+                    <div className="text-[10px] text-ink-subtle mt-0.5">{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Infos */}
+          <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
+            <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark">Infos du jeu</h3>
+            <div className="flex flex-col">
+              {([
+                year             && { k: 'Sortie',    v: String(year) },
+                game?.genres?.length && { k: 'Genre', v: game.genres!.slice(0, 2).join(', ') },
+                               { k: 'Ajouté le',  v: new Date(entry.created_at).toLocaleDateString('fr-FR') },
+                entry.completed_at && { k: 'Terminé le', v: new Date(entry.completed_at).toLocaleDateString('fr-FR') },
+              ] as ({ k: string; v: string } | false)[])
+                .filter(Boolean)
+                .map(row => (
+                  <div key={(row as any).k} className="flex justify-between items-center py-2.5 border-b border-surface dark:border-surface-dark last:border-0 text-sm">
+                    <span className="text-ink-muted dark:text-ink-subtle">{(row as any).k}</span>
+                    <span className="font-semibold text-ink dark:text-ink-dark">{(row as any).v}</span>
+                  </div>
+                ))}
+              {game?.metacritic && (
+                <div className="flex justify-between items-center py-2.5 text-sm">
+                  <span className="text-ink-muted dark:text-ink-subtle">Metacritic</span>
+                  <span className="font-bold px-2 py-0.5 rounded text-xs"
+                    style={{ background: game.metacritic >= 75 ? 'var(--color-forest-bg)' : 'var(--color-amber-bg)', color: game.metacritic >= 75 ? 'var(--color-forest)' : 'var(--color-amber)' }}>
+                    {game.metacritic}
+                  </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* RIGHT */}
-          <div className="flex flex-col gap-4">
-
-            {/* Stats globales */}
-            {gameStats && (
-              <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-                <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark">Stats <em className="italic text-amber">globales</em></h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { v: gameStats.avg_rating ? `★ ${gameStats.avg_rating}` : '—', l: 'Note moy.', c: 'text-amber' },
-                    { v: gameStats.player_count,    l: 'Joueurs',   c: 'text-cobalt' },
-                    { v: gameStats.completed_count, l: 'Terminés',  c: 'text-forest' },
-                    { v: gameStats.review_count,    l: 'Critiques', c: 'text-ink-muted' },
-                  ].map(s => (
-                    <div key={s.l} className="bg-surface dark:bg-surface-dark rounded-[var(--radius-sm)] p-3 text-center">
-                      <div className={`font-serif text-xl font-black ${s.c}`}>{s.v}</div>
-                      <div className="text-[10px] text-ink-subtle mt-0.5">{s.l}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Infos */}
+          {/* Amis compact */}
+          {friendsWhoPlayed.length > 0 && (
             <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-              <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark">Infos du jeu</h3>
-              <div className="flex flex-col">
-                {[
-                  year && { k: 'Sortie', v: year },
-                  game?.genres?.length > 0 && { k: 'Genre', v: game.genres.slice(0, 2).join(', ') },
-                  { k: 'Ajouté le', v: new Date(entry.created_at).toLocaleDateString('fr-FR') },
-                  entry.completed_at && { k: 'Terminé le', v: new Date(entry.completed_at).toLocaleDateString('fr-FR') },
-                ].filter(Boolean).map((row: any) => (
-                  <div key={row.k} className="flex justify-between items-center py-2.5 border-b border-surface dark:border-surface-dark last:border-0 text-sm">
-                    <span className="text-ink-muted dark:text-ink-subtle">{row.k}</span>
-                    <span className="font-semibold text-ink dark:text-ink-dark">{row.v}</span>
-                  </div>
-                ))}
-                {game?.metacritic && (
-                  <div className="flex justify-between items-center py-2.5 text-sm">
-                    <span className="text-ink-muted dark:text-ink-subtle">Metacritic</span>
-                    <span className="font-bold px-2 py-0.5 rounded text-xs"
-                      style={{ background: game.metacritic >= 75 ? 'var(--color-forest-bg)' : 'var(--color-amber-bg)', color: game.metacritic >= 75 ? 'var(--color-forest)' : 'var(--color-amber)' }}>
-                      {game.metacritic}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Amis compact */}
-            {friendsWhoPlayed.length > 0 && (
-              <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-5 shadow-card">
-                <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark"><em className="italic text-amber">Amis</em> qui jouent</h3>
-                <div className="flex flex-col gap-2.5">
-                  {friendsWhoPlayed.slice(0, 4).map((f: any, i: number) => (
+              <h3 className="font-serif text-sm font-black mb-3 text-ink dark:text-ink-dark"><em className="italic text-amber">Amis</em> qui jouent</h3>
+              <div className="flex flex-col gap-2.5">
+                {friendsWhoPlayed.slice(0, 4).map((f, i) => {
+                  const username = getUsername(f.profiles)
+                  return (
                     <div key={i} className="flex items-center gap-2.5">
                       <div className="w-7 h-7 rounded-full bg-amber flex items-center justify-center text-[10px] font-bold text-paper flex-shrink-0">
-                        {getUsername(f.profiles).slice(0, 2).toUpperCase()}
+                        {username.slice(0, 2).toUpperCase()}
                       </div>
-                      <span className="text-sm font-medium text-ink dark:text-ink-dark flex-1 truncate">{getUsername(f.profiles)}</span>
+                      <span className="text-sm font-medium text-ink dark:text-ink-dark flex-1 truncate">{username}</span>
                       {f.rating && <span className="text-xs font-mono text-amber flex-shrink-0">★ {f.rating * 2}</span>}
                     </div>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

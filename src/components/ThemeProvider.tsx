@@ -19,20 +19,22 @@ const ThemeContext = createContext<ThemeContextValue>({
 export function useTheme() { return useContext(ThemeContext) }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light')
+  const [theme, setThemeState] = useState<Theme>('dark')
 
-  // Init depuis localStorage
+  // Init depuis localStorage — CSS est dark-first, on toggle la classe .light
   useEffect(() => {
     const stored = localStorage.getItem('gt-theme') as Theme | null
-    const initial = stored ?? 'light'
+    const initial = stored ?? 'dark'
     setThemeState(initial)
-    document.documentElement.classList.toggle('dark', initial === 'dark')
+    document.documentElement.classList.toggle('light', initial === 'light')
+    document.documentElement.classList.toggle('dark',  initial === 'dark')
   }, [])
 
   function setTheme(t: Theme) {
     setThemeState(t)
     localStorage.setItem('gt-theme', t)
-    document.documentElement.classList.toggle('dark', t === 'dark')
+    document.documentElement.classList.toggle('light', t === 'light')
+    document.documentElement.classList.toggle('dark',  t === 'dark')
   }
 
   function toggle() { setTheme(theme === 'dark' ? 'light' : 'dark') }
@@ -49,8 +51,9 @@ export const themeScript = `
 (function(){
   try{
     var t=localStorage.getItem('gt-theme');
-    if(t==='dark') document.documentElement.classList.add('dark');
-  }catch(e){}
+    if(t==='light') document.documentElement.classList.add('light');
+    else document.documentElement.classList.add('dark');
+  }catch(e){ document.documentElement.classList.add('dark'); }
 })();
 `
 
