@@ -69,8 +69,8 @@ export default async function GameDetailPage({
     <GameDetailClient
       entry={entry as any}
       userId={user.id}
-      communityReviews={communityReviews || []}
-      friendActivity={friendActivity || []}
+      communityReviews={(communityReviews || []) as any}
+      friendActivity={(friendActivity || []) as any}
       gameStats={gameStats || null}
     />
   )
