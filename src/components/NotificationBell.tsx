@@ -124,7 +124,7 @@ export default function NotificationBell({ userId }: Props) {
       {/* ── Dropdown panel ── */}
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-80 rounded-xl shadow-xl border border-border overflow-hidden z-50"
+          className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 sm:w-80 rounded-xl shadow-xl border border-border overflow-hidden z-50"
           style={{ maxHeight: '440px', backgroundColor: 'hsl(var(--background))' }}
         >
           {/* Header */}

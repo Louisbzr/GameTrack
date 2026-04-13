@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CalendarDays, ChevronLeft, ChevronRight, X, Plus, Check, Star } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ function AddModal({
   onAdded: (gameDbId: string) => void
 }) {
   const supabase = createClient()
+
   const [status,  setStatus]  = useState('backlog')
   const [rating,  setRating]  = useState(0)
   const [hover,   setHover]   = useState(0)
@@ -218,6 +220,7 @@ function AddModal({
 
 export default function ReleasesClient() {
   const supabase = createClient()
+  const router    = useRouter()
 
   const [weekOffset,    setWeekOffset]    = useState(0)
   const [games,         setGames]         = useState<ReleaseGame[]>([])
@@ -228,7 +231,46 @@ export default function ReleasesClient() {
   const [userId,        setUserId]        = useState<string | null>(null)
   const [addedIds,      setAddedIds]      = useState<Set<number>>(new Set())
   const [selectedGame,  setSelectedGame]  = useState<ReleaseGame | null>(null)
+  const [navigatingId,  setNavigatingId]  = useState<number | null>(null)
 
+  async function navigateToGame(game: ReleaseGame) {
+    setNavigatingId(game.igdb_id)
+    try {
+      // Cherche le jeu par igdb_id pour obtenir son UUID Supabase
+      const { data: existing } = await supabase
+        .from('games')
+        .select('id')
+        .eq('igdb_id', game.igdb_id)
+        .maybeSingle()
+
+      let dbId: string
+      if (existing?.id) {
+        dbId = existing.id
+      } else {
+        // Jeu pas encore en DB (sortie future) → on l'insère
+        const { data: inserted } = await supabase
+          .from('games')
+          .insert({
+            igdb_id:     game.igdb_id,
+            name:        game.name,
+            cover_url:   game.cover_url,
+            genres:      game.genres,
+            platforms:   game.platforms,
+            released_at: game.released,
+            metacritic:  game.metacritic,
+          })
+          .select('id')
+          .single()
+        if (!inserted) return
+        dbId = inserted.id
+      }
+
+      router.push(`/games/${dbId}`)
+    } finally {
+      setNavigatingId(null)
+    }
+  }
+  
   // Auth
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -411,10 +453,7 @@ export default function ReleasesClient() {
               const isAdded = addedIds.has(g.igdb_id)
               const platforms = g.platforms.map(shortPlatform).slice(0, 4)
               return (
-                <button key={g.igdb_id} onClick={() => !isAdded && setSelectedGame(g)}
-                  className={`glass rounded-lg p-4 flex gap-4 group text-left transition-colors w-full ${
-                    isAdded ? 'opacity-60 cursor-default' : 'hover:border-primary/50 cursor-pointer'
-                  }`}>
+                <div key={g.igdb_id} className="glass rounded-lg p-4 flex gap-4 group text-left transition-colors w-full hover:border-primary/50 relative">
                   <div className="w-20 h-28 rounded-md overflow-hidden flex-shrink-0 bg-surface dark:bg-surface-dark">
                     {g.cover_url
                       ? <img src={g.cover_url} alt={g.name} className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500" />
@@ -426,9 +465,11 @@ export default function ReleasesClient() {
                       <h3 className="font-semibold text-ink dark:text-ink-dark group-hover:text-primary transition-colors line-clamp-2 leading-snug text-sm">
                         {g.name}
                       </h3>
-                      {isAdded
-                        ? <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                        : <Plus className="w-4 h-4 text-ink-subtle flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {navigatingId === g.igdb_id
+                        ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0 mt-0.5" />
+                        : isAdded
+                          ? <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                          : <Plus className="w-4 h-4 text-ink-subtle flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                       }
                     </div>
                     {g.genres?.[0] && <p className="text-xs text-ink-subtle">{g.genres.slice(0, 2).join(', ')}</p>}
@@ -446,7 +487,13 @@ export default function ReleasesClient() {
                       </span>
                     ) : null}
                   </div>
-                </button>
+                  {/* Overlay: click card = navigate to game detail */}
+                  <button
+                    onClick={() => navigatingId === null && navigateToGame(g)}
+                    disabled={navigatingId !== null}
+                    className="absolute inset-0 rounded-lg z-0"
+                  />
+                </div>
               )
             })}
           </div>

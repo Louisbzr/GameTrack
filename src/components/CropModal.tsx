@@ -24,10 +24,10 @@ export default function CropModal({ imageSrc, aspect, shape = 'rect', onConfirm,
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, ox: 0, oy: 0 })
 
   // Container = zone d'affichage. Crop box centré dedans.
-  const BOX_W = 400
+  const BOX_W = typeof window !== 'undefined' ? Math.min(400, window.innerWidth - 80) : 400
   const BOX_H = Math.round(BOX_W / aspect)
-  const CONTAINER_W = BOX_W + 80
-  const CONTAINER_H = BOX_H + 80
+  const CONTAINER_W = BOX_W + 40
+  const CONTAINER_H = BOX_H + 40
 
   // Init image position when loaded
   function onImgLoad() {
@@ -130,7 +130,7 @@ export default function CropModal({ imageSrc, aspect, shape = 'rect', onConfirm,
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
-      <div className="rounded-2xl overflow-hidden shadow-2xl border border-border w-full max-w-lg"
+      <div className="rounded-2xl overflow-hidden shadow-2xl border border-border w-full max-w-lg max-h-[95vh] flex flex-col"
         style={{ backgroundColor: 'hsl(var(--background))' }}>
 
         {/* Header */}
@@ -142,7 +142,7 @@ export default function CropModal({ imageSrc, aspect, shape = 'rect', onConfirm,
         </div>
 
         {/* Crop area */}
-        <div className="flex items-center justify-center py-6" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+        <div className="flex items-center justify-center py-4 overflow-hidden flex-shrink-0" style={{ backgroundColor: 'hsl(var(--muted))' }}>
           <div
             ref={containerRef}
             style={{ width: CONTAINER_W, height: CONTAINER_H, position: 'relative', overflow: 'hidden', cursor: dragging ? 'grabbing' : 'grab' }}
@@ -196,7 +196,7 @@ export default function CropModal({ imageSrc, aspect, shape = 'rect', onConfirm,
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-border gap-4">
+        <div className="flex flex-wrap items-center justify-between px-4 py-3 border-t border-border gap-3">
           <div className="flex items-center gap-2">
             <button onClick={() => changeScale(-0.1)} className="p-2 rounded-lg glass hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
               <ZoomOut className="w-4 h-4" />

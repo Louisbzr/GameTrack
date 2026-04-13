@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Gamepad2, Search, List, Home, LogOut, User, Settings, ChevronDown } from 'lucide-react'
+import { Gamepad2, Search, List, Home, LogOut, User, Settings, ChevronDown, X } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import NotificationBell from '@/components/NotificationBell'
 import { createClient } from '@/lib/supabase/client'
@@ -32,8 +32,15 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
   const router   = useRouter()
   const supabase = createClient()
 
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuOpen,     setMenuOpen]     = useState(false)
+  const [searchOpen,   setSearchOpen]   = useState(false)
+  const [searchQuery,  setSearchQuery]  = useState('')
+  const [searchGames,  setSearchGames]  = useState<any[]>([])
+  const [searchUsers,  setSearchUsers]  = useState<any[]>([])
+  const [searching,    setSearching]    = useState(false)
+  const menuRef   = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -43,6 +50,58 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
+
+  useEffect(() => {
+    if (!searchOpen) return
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) closeSearch()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [searchOpen])
+
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => inputRef.current?.focus(), 50)
+  }, [searchOpen])
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleSearchInput(q: string) {
+    setSearchQuery(q)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!q.trim()) { setSearchGames([]); setSearchUsers([]); return }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        // Users: requête Supabase directe (même logique que FriendsClient)
+        const { data: usersData } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, avatar_color, level')
+          .ilike('username', `%${q}%`)
+          .limit(4)
+
+        // Games: API existante
+        const gamesRes = await fetch(`/api/games/search?q=${encodeURIComponent(q)}`).then(r => r.json())
+
+        setSearchUsers(usersData ?? [])
+        setSearchGames((gamesRes.results ?? gamesRes.games ?? []).slice(0, 4))
+      } catch {}
+      setSearching(false)
+    }, 300)
+  }
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchGames([])
+    setSearchUsers([])
+  }
+
+  const SEARCH_AVATAR_COLORS: Record<string, string> = {
+    forest: '#22c55e', ocean: '#3b82f6', fire: '#f97316',
+    violet: '#a855f7', rose: '#ec4899', gold: '#f59e0b',
+    ice: '#06b6d4',    slate: '#64748b',
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -88,9 +147,92 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
             )
           })}
 
-          <Link href="/library" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-            <Search className="w-4 h-4" />
-          </Link>
+          {/* Search */}
+          <div className="relative" ref={searchRef}>
+            <button onClick={() => setSearchOpen(v => !v)}
+              className={`p-2 rounded-lg transition-colors ${searchOpen ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}>
+              <Search className="w-4 h-4" />
+            </button>
+
+            {searchOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl border border-border shadow-xl z-50 overflow-hidden"
+                style={{ backgroundColor: 'hsl(var(--background))' }}>
+                {/* Input */}
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
+                  <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <input
+                    ref={inputRef}
+                    value={searchQuery}
+                    onChange={e => handleSearchInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Escape') closeSearch() }}
+                    placeholder="Cherchez un utilisteur..."
+                    className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                  />
+                  {searching && <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+                  {searchQuery && !searching && (
+                    <button onClick={() => handleSearchInput('')} className="text-muted-foreground hover:text-foreground">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Results */}
+                {(searchGames.length > 0 || searchUsers.length > 0) ? (
+                  <div className="max-h-80 overflow-y-auto">
+                    {/* Users */}
+                    {searchUsers.length > 0 && (
+                      <div>
+                        <p className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/40">Joueurs</p>
+                        {searchUsers.map((u: any) => (
+                          <Link key={u.id} href={`/${u.username}`} onClick={closeSearch}
+                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-secondary transition-colors">
+                            {u.avatar_url
+                              ? <img src={u.avatar_url} alt={u.username} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                              : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                                  style={{ backgroundColor: SEARCH_AVATAR_COLORS[u.avatar_color] ?? '#22c55e' }}>
+                                  {u.username?.[0]?.toUpperCase()}
+                                </div>
+                            }
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-foreground truncate">@{u.username}</p>
+                              <p className="text-[10px] text-muted-foreground">Niveau {u.level ?? 1}</p>
+                            </div>
+                            <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    {/* Games */}
+                    {searchGames.length > 0 && (
+                      <div>
+                        <p className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/40">Jeux</p>
+                        {searchGames.map((g: any) => (
+                          <Link key={g.id} href={`/games/${g.id}`} onClick={closeSearch}
+                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-secondary transition-colors">
+                            <div className="w-8 h-10 rounded-md overflow-hidden flex-shrink-0 bg-secondary">
+                              {g.cover_url
+                                ? <img src={g.cover_url} alt={g.name} className="w-full h-full object-cover" />
+                                : <div className="w-full h-full flex items-center justify-center text-base">🎮</div>
+                              }
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-foreground truncate">{g.name}</p>
+                              {g.released && <p className="text-[10px] text-muted-foreground">{new Date(g.released).getFullYear()}</p>}
+                            </div>
+                            <Gamepad2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : searchQuery.length >= 2 && !searching ? (
+                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">Aucun résultat pour "{searchQuery}"</div>
+                ) : searchQuery.length === 0 ? (
+                  <div className="px-4 py-4 text-center text-xs text-muted-foreground">Tapez au moins 2 caractères</div>
+                ) : null}
+              </div>
+            )}
+          </div>
 
           <ThemeToggle />
 

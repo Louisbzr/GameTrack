@@ -41,11 +41,23 @@ interface Props {
   isFriend: boolean
   hasPendingRequest: boolean
   targetUserId: string
+  privacySettings?: {
+    profilePublic: boolean
+    showGameList: boolean
+    showStats: boolean
+    showActivity: boolean
+  }
 }
 
 export default function PublicProfileClient({
-  profile, library, badges, stats, viewerId, isFriend, hasPendingRequest, targetUserId
+  profile, library, badges, stats, viewerId, isFriend, hasPendingRequest, targetUserId, privacySettings
 }: Props) {
+  const privacy = privacySettings ?? { profilePublic: true, showGameList: true, showStats: true, showActivity: true }
+
+  // If profile is private and viewer is not owner or friend
+  const isOwner = viewerId === targetUserId
+  const canView = isOwner || isFriend || privacy.profilePublic
+
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>(
     isFriend ? 'friends' : hasPendingRequest ? 'pending' : 'none'
   )
@@ -74,6 +86,18 @@ export default function PublicProfileClient({
   }
 
   const isOwnProfile = viewerId === targetUserId
+
+  if (!canView) {
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center">
+        <div className="text-center glass rounded-2xl p-10 max-w-sm mx-auto border border-border">
+          <div className="text-5xl mb-4">🔒</div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Profil privé</h2>
+          <p className="text-muted-foreground text-sm">Ce profil n'est visible que par ses amis.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 lg:px-8 py-6">
@@ -132,6 +156,7 @@ export default function PublicProfileClient({
       )}
 
       {/* Stats */}
+      {(isOwner || privacy.showStats) && (
       <div className="grid grid-cols-4 gap-2.5 mb-6">
         {[
           { n: stats.total,     l: 'Total',    c: 'text-cobalt' },
@@ -145,6 +170,7 @@ export default function PublicProfileClient({
           </div>
         ))}
       </div>
+      )}
 
       {/* Badges */}
       <div className="mb-6">
@@ -168,6 +194,7 @@ export default function PublicProfileClient({
       </div>
 
       {/* Jeux récents */}
+      {(isOwner || privacy.showGameList) && (
       <div>
         <div className="flex items-center gap-3 mb-4">
           <h2 className="font-serif text-lg font-black text-ink dark:text-ink-dark">Jeux <em className="italic text-amber">récents</em></h2>
@@ -195,6 +222,7 @@ export default function PublicProfileClient({
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

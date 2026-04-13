@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import StarRating from '@/components/StarRating'
 import ReviewCard from '@/components/ReviewCard'
 import ListPickerModal from '@/components/library/ListPickerModal'
+import { useSettings } from '@/components/SettingsProvider'
 
 interface Props {
   game: any
@@ -46,6 +47,7 @@ function formatReleaseDate(iso: string | null): string | null {
 export default function GameDetailPublicClient({ game, reviews, myEntry, similarGames, userId }: Props) {
   const router   = useRouter()
   const supabase = createClient()
+  const { settings } = useSettings()
 
   const [userRating,     setUserRating]     = useState<number>(myEntry?.rating ? Number(myEntry.rating) : 0)
   const [hoverRating,    setHoverRating]    = useState(0)
@@ -626,19 +628,33 @@ export default function GameDetailPublicClient({ game, reviews, myEntry, similar
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {videos.map((v, i) => (
-                      <a key={i} href={v.url} target="_blank" rel="noopener noreferrer"
-                        className="relative aspect-video rounded-xl overflow-hidden glass neon-border group cursor-pointer block">
-                        <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => { const t = e.target as HTMLImageElement; if (t.src.includes("hqdefault")) { t.src = `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg` } else { t.src = `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg` } }} />
-                        <div className="absolute inset-0 bg-background/40 flex items-center justify-center group-hover:bg-background/20 transition-colors">
-                          <div className="w-16 h-16 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
-                            <Play className="w-8 h-8 text-primary-foreground ml-1" />
+                      <div key={i}>
+                        {settings.autoplayTrailers ? (
+                          <div className="relative aspect-video rounded-xl overflow-hidden glass neon-border">
+                            <iframe
+                              src={`https://www.youtube.com/embed/${v.videoId}?autoplay=1&mute=1`}
+                              title={v.title}
+                              allow="autoplay; encrypted-media"
+                              allowFullScreen
+                              className="w-full h-full border-0"
+                            />
                           </div>
-                        </div>
-                        <div className="absolute bottom-3 left-3 glass px-3 py-1 rounded-lg text-xs font-medium text-foreground">
-                          {v.title}
-                        </div>
-                      </a>
+                        ) : (
+                          <a href={v.url} target="_blank" rel="noopener noreferrer"
+                            className="relative aspect-video rounded-xl overflow-hidden glass neon-border group cursor-pointer block">
+                            <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={(e) => { const t = e.target as HTMLImageElement; if (t.src.includes("hqdefault")) { t.src = `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg` } else { t.src = `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg` } }} />
+                            <div className="absolute inset-0 bg-background/40 flex items-center justify-center group-hover:bg-background/20 transition-colors">
+                              <div className="w-16 h-16 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+                                <Play className="w-8 h-8 text-primary-foreground ml-1" />
+                              </div>
+                            </div>
+                            <div className="absolute bottom-3 left-3 glass px-3 py-1 rounded-lg text-xs font-medium text-foreground">
+                              {v.title}
+                            </div>
+                          </a>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </section>

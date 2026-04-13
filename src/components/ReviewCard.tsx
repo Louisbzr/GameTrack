@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ThumbsUp, Heart } from 'lucide-react'
+import { ThumbsUp, Flag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import ReportModal from '@/components/ReportModal'
 
 interface Props {
   review: {
     id: string
+    user_id?: string
     username: string
     avatar_color?: string
     avatar_url?: string
@@ -55,7 +57,8 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
 
   const [likes,   setLikes]   = useState(review.likes ?? 0)
   const [liked,   setLiked]   = useState(review.likedByMe ?? false)
-  const [loading, setLoading] = useState(false)
+  const [loading,    setLoading]    = useState(false)
+  const [reporting,  setReporting]  = useState(false)
 
   async function handleLike() {
     if (!currentUserId || loading) return
@@ -98,7 +101,7 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
 
       <p className="text-sm text-muted-foreground leading-relaxed">{review.review}</p>
 
-      <div className="flex items-center gap-4 pt-1">
+      <div className="flex items-center justify-between pt-1">
         <button
           onClick={handleLike}
           disabled={!currentUserId || loading}
@@ -109,7 +112,22 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
           <ThumbsUp className={`w-3.5 h-3.5 ${liked ? 'fill-primary' : ''}`} />
           {likes}
         </button>
+        {currentUserId && currentUserId !== review.user_id && (
+          <button onClick={() => setReporting(true)}
+            className="flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-red-400 transition-colors">
+            <Flag className="w-3 h-3" />
+          </button>
+        )}
       </div>
+
+      {reporting && currentUserId && (
+        <ReportModal
+          targetType="review"
+          targetId={review.id}
+          reporterId={currentUserId}
+          onClose={() => setReporting(false)}
+        />
+      )}
     </div>
   )
 }

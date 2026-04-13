@@ -52,16 +52,7 @@ export default async function DiscoverPage() {
     friendReviews = data || []
   }
 
-  if (friendReviews.length === 0) {
-    const { data } = await supabase
-      .from('library')
-      .select('id, user_id, review, rating, updated_at, profiles(username, avatar_color, avatar_url), games(id, name, cover_url), review_likes(id, user_id)')
-      .not('review', 'is', null)
-      .neq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(3)
-    friendReviews = data || []
-  }
+
 
   // Jeux populaires - triés par vues réelles
   const { data: popularGamesRaw } = await supabase

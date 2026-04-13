@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useSettings } from '@/components/SettingsProvider'
 import { Search, X, Star, Check, ChevronRight } from 'lucide-react'
 
 interface Props {
@@ -41,6 +42,7 @@ export default function AddGameModal({ userId, onClose, onAdded }: Props) {
   const [results,   setResults]   = useState<SearchResult[]>([])
   const [selected,  setSelected]  = useState<SearchResult | null>(null)
   const [searching, setSearching] = useState(false)
+  const { settings } = useSettings()
   const [status,    setStatus]    = useState('backlog')
   const [rating,    setRating]    = useState(0)
   const [hover,     setHover]     = useState(0)
@@ -114,6 +116,7 @@ export default function AddGameModal({ userId, onClose, onAdded }: Props) {
         user_id: userId,
         game_id: gameId,
         status,
+        platform: settings.defaultPlatform || null,
         rating:  rating > 0 ? rating : null,
         review:  review.trim() || null,
       }, { onConflict: 'user_id,game_id' })

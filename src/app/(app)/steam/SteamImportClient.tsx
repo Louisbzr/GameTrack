@@ -91,7 +91,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 lg:px-8 py-6">
+    <div className="max-w-2xl mx-auto px-4 lg:px-8 pt-28 pb-16">
 
       {/* Header */}
       <div className="mb-8">
@@ -100,7 +100,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
           Importer depuis <em className="italic text-amber">Steam</em>
         </h1>
         <p className="text-sm text-ink-muted dark:text-ink-subtle font-serif italic">
-          {autoSyncId ? 'Synchronisation de ton compte Steam…' : 'Récupère ta bibliothèque + covers via RAWG'}
+          {autoSyncId ? 'Synchronisation de ton compte Steam…' : 'Récupère ta bibliothèque + covers via IGDB'}
         </p>
       </div>
 
@@ -157,7 +157,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
                 <h2 className="font-serif text-base font-black text-ink dark:text-ink-dark">
                   <em className="italic text-amber">{games.length} jeux</em> trouvés
                 </h2>
-                <p className="text-xs text-ink-muted dark:text-ink-subtle mt-0.5">Import + enrichissement RAWG côté serveur</p>
+                <p className="text-xs text-ink-muted dark:text-ink-subtle mt-0.5">Import + enrichissement IGDB côté serveur</p>
               </div>
               <button onClick={() => runImport(games)} className="bg-amber text-black px-5 py-2.5 rounded-[var(--radius-sm)] text-sm font-semibold hover:opacity-90 transition-opacity">
                 Importer tout
@@ -202,30 +202,48 @@ export default function SteamImportClient({ userId }: { userId: string }) {
       {step === 'done' && result && (
         <div className="flex flex-col gap-4">
           <div className="bg-card dark:bg-card-dark rounded-[var(--radius-lg)] p-8 shadow-card text-center">
-            <div className="text-5xl mb-5">🎉</div>
-            <h2 className="font-serif text-2xl font-black mb-2 text-ink dark:text-ink-dark">
-              {autoSyncId ? 'Sync terminée !' : 'Import terminé !'}
-            </h2>
-            <p className="text-sm text-ink-muted dark:text-ink-subtle mb-8">Ta bibliothèque a été mise à jour</p>
-            <div className="grid grid-cols-3 gap-3 mb-8">
-              <div className="bg-forest-bg rounded-[var(--radius-sm)] p-4">
-                <div className="font-serif text-2xl font-black text-forest">{result.imported}</div>
-                <div className="text-[10px] font-semibold text-forest/70 uppercase tracking-wider mt-1">Importés</div>
-              </div>
-              <div className="bg-surface dark:bg-surface-dark rounded-[var(--radius-sm)] p-4">
-                <div className="font-serif text-2xl font-black text-ink-muted">{result.skipped}</div>
-                <div className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider mt-1">Déjà présents</div>
-              </div>
-              <div className="bg-amber-bg dark:bg-amber-bg-dark rounded-[var(--radius-sm)] p-4">
-                <div className="font-serif text-2xl font-black text-amber">{result.errors}</div>
-                <div className="text-[10px] font-semibold text-amber/70 uppercase tracking-wider mt-1">Erreurs</div>
-              </div>
-            </div>
-            {result.imported > 0 && (
-              <div className="bg-amber-bg dark:bg-amber-bg-dark rounded-[var(--radius-sm)] p-3 mb-5 inline-flex items-center gap-2">
-                <span className="text-amber font-bold text-sm">+{Math.min(result.imported * 5, 200)} XP</span>
-                <span className="text-[11px] text-amber/70">pour l'import Steam</span>
-              </div>
+            {result.imported === 0 && result.skipped > 0 ? (
+              <>
+                <div className="text-5xl mb-5">✅</div>
+                <h2 className="font-serif text-2xl font-black mb-2 text-ink dark:text-ink-dark">
+                  Bibliothèque déjà à jour !
+                </h2>
+                <p className="text-sm text-ink-muted dark:text-ink-subtle mb-8">
+                  Tous tes jeux Steam ({result.skipped}) sont déjà dans ta bibliothèque GameTrack.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-5xl mb-5">🎉</div>
+                <h2 className="font-serif text-2xl font-black mb-2 text-ink dark:text-ink-dark">
+                  {autoSyncId ? 'Sync terminée !' : 'Import terminé !'}
+                </h2>
+                <p className="text-sm text-ink-muted dark:text-ink-subtle mb-8">Ta bibliothèque a été mise à jour</p>
+              </>
+            )}
+            {(result.imported > 0 || result.errors > 0) && (
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-8">
+                  <div className="bg-forest-bg rounded-[var(--radius-sm)] p-4">
+                    <div className="font-serif text-2xl font-black text-forest">{result.imported}</div>
+                    <div className="text-[10px] font-semibold text-forest/70 uppercase tracking-wider mt-1">Importés</div>
+                  </div>
+                  <div className="bg-surface dark:bg-surface-dark rounded-[var(--radius-sm)] p-4">
+                    <div className="font-serif text-2xl font-black text-ink-muted">{result.skipped}</div>
+                    <div className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider mt-1">Déjà présents</div>
+                  </div>
+                  <div className="bg-amber-bg dark:bg-amber-bg-dark rounded-[var(--radius-sm)] p-4">
+                    <div className="font-serif text-2xl font-black text-amber">{result.errors}</div>
+                    <div className="text-[10px] font-semibold text-amber/70 uppercase tracking-wider mt-1">Erreurs</div>
+                  </div>
+                </div>
+                {result.imported > 0 && (
+                  <div className="bg-amber-bg dark:bg-amber-bg-dark rounded-[var(--radius-sm)] p-3 mb-5 inline-flex items-center gap-2">
+                    <span className="text-amber font-bold text-sm">+{Math.min(result.imported * 10, 500)} XP</span>
+                    <span className="text-[11px] text-amber/70">pour l'import Steam</span>
+                  </div>
+                )}
+              </>
             )}
             <div className="flex gap-3 justify-center">
               <a href="/library" className="inline-flex items-center gap-2 bg-ink dark:bg-card-dark text-paper dark:text-ink-dark px-6 py-3 rounded-[var(--radius-sm)] text-sm font-semibold hover:bg-amber hover:text-black transition-colors">

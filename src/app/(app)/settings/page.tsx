@@ -9,7 +9,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('username, avatar_color')
+    .select('username, avatar_color, avatar_url')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -17,6 +17,9 @@ export default async function SettingsPage() {
     <SettingsClient
       userId={user.id}
       username={profile?.username ?? user.email?.split('@')[0] ?? 'Joueur'}
+      email={user.email}
+      avatarUrl={profile?.avatar_url ?? null}
+      avatarColor={profile?.avatar_color ?? 'forest'}
     />
   )
 }

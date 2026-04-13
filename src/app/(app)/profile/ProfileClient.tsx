@@ -7,7 +7,8 @@ import {
   Gamepad2, MessageSquare, List, Users, UserPlus,
   Trophy, Zap, Lock, Check, Camera,
   Upload, X, Pencil, ArrowLeft, Heart,
-  BarChart3, Star, TrendingUp, Monitor, Link2, Unlink, Target, Medal, Flame, Calendar, PieChart as PieIcon
+  BarChart3, Star, TrendingUp, Monitor, Link2, Unlink, Target, Medal, Flame, Calendar, PieChart as PieIcon,
+  Crown, BookOpen, PenLine, Library, Gamepad2 as Gamepad2Icon, Shield as ShieldIcon
 } from 'lucide-react'
 import ReviewCard from '@/components/ReviewCard'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area, CartesianGrid } from 'recharts'
@@ -17,16 +18,16 @@ import StarRating from '@/components/StarRating'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const ALL_BADGES = [
-  { slug: 'first_blood',    icon: '🎮', name: 'Premier Pas',     desc: 'Jouer à votre premier jeu',  xp: 50,   locked: false, rarity: 'common' },
-  { slug: 'critic',         icon: '✏️', name: 'Critique Novice', desc: 'Écrire votre premier avis',  xp: 50,   locked: false, rarity: 'common' },
-  { slug: 'veteran',        icon: '💯', name: 'Centurion',       desc: 'Jouer à 100 jeux',           xp: 500,  locked: false, rarity: 'rare' },
-  { slug: 'on_fire',        icon: '🏆', name: "Plume d'Or",      desc: 'Écrire 50 avis',             xp: 300,  locked: false, rarity: 'rare' },
-  { slug: 'legend',         icon: '⭐', name: 'Influenceur',     desc: 'Avoir 1000 abonnés',         xp: 500,  locked: false, rarity: 'rare' },
-  { slug: 'marathonien',    icon: '🏃', name: 'Marathonien',     desc: 'Jouer à 500 jeux',           xp: 1000, locked: true, rarity: 'epic'  },
-  { slug: 'legende_rank',   icon: '👑', name: 'Légende',         desc: 'Atteindre le niveau 20',     xp: 2000, locked: true, rarity: 'legendary'  },
-  { slug: 'sociable',       icon: '🤝', name: 'Sociable',        desc: 'Suivre 200 personnes',       xp: 200,  locked: true, rarity: 'rare'  },
-  { slug: 'connaisseur',    icon: '🎯', name: 'Connaisseur',     desc: 'Noter 200 jeux',             xp: 750,  locked: true, rarity: 'epic'  },
-  { slug: 'collectionneur', icon: '📚', name: 'Collectionneur',  desc: 'Créer 20 listes',            xp: 300,  locked: true, rarity: 'rare'  },
+  { slug: 'first_blood',    lucide: 'Gamepad2',    name: 'Premier Pas',     desc: 'Jouer à votre premier jeu',  xp: 50,   rarity: 'common'    },
+  { slug: 'critic',         lucide: 'PenLine',     name: 'Critique Novice', desc: 'Écrire votre premier avis',  xp: 50,   rarity: 'common'    },
+  { slug: 'veteran',        lucide: 'Shield',      name: 'Centurion',       desc: 'Jouer à 100 jeux',           xp: 500,  rarity: 'rare'      },
+  { slug: 'on_fire',        lucide: 'BookOpen',    name: "Plume d'Or",      desc: 'Écrire 50 avis',             xp: 300,  rarity: 'rare'      },
+  { slug: 'legend',         lucide: 'Star',        name: 'Influenceur',     desc: 'Avoir 1000 abonnés',         xp: 500,  rarity: 'rare'      },
+  { slug: 'marathonien',    lucide: 'Zap',         name: 'Marathonien',     desc: 'Jouer à 500 jeux',           xp: 1000, rarity: 'epic'      },
+  { slug: 'legende_rank',   lucide: 'Crown',       name: 'Légende',         desc: 'Atteindre le niveau 20',     xp: 2000, rarity: 'legendary' },
+  { slug: 'sociable',       lucide: 'Users',       name: 'Sociable',        desc: 'Suivre 200 personnes',       xp: 200,  rarity: 'rare'      },
+  { slug: 'connaisseur',    lucide: 'Target',      name: 'Connaisseur',     desc: 'Noter 200 jeux',             xp: 750,  rarity: 'epic'      },
+  { slug: 'collectionneur', lucide: 'Library',     name: 'Collectionneur',  desc: 'Créer 20 listes',            xp: 300,  rarity: 'rare'      },
 ]
 
 const AVATAR_COLORS: Record<string, string> = {
@@ -90,7 +91,11 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
   const [eSteamId,    setESteamId]    = useState(profile?.steam_id ?? '')
   const [steamSyncing, setSteamSyncing] = useState(false)
   const [activeTab,    setActiveTab]    = useState<'jeux'|'stats'|'succes'|'amis'|'plateformes'>('jeux')
-  const [platConnected, setPlatConnected] = useState<Record<string,boolean>>({ steam: !!profile?.steam_id })
+  const [steamId,       setSteamId]       = useState<string>(profile?.steam_id ?? '')
+  const [steamIdInput,  setSteamIdInput]  = useState('')
+  const [connectingSteam, setConnectingSteam] = useState(false)
+  const [disconnectingSteam, setDisconnectingSteam] = useState(false)
+  const [showSteamInput, setShowSteamInput] = useState(false)
   const [badgeFilter,   setBadgeFilter]   = useState<string>('all')
   const [saving,      setSaving]      = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -101,8 +106,8 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
   const [cropSrc,    setCropSrc]    = useState<string | null>(null)
   const [cropMode,   setCropMode]   = useState<'avatar' | 'banner' | null>(null)
 
-  const earnedBadges = ALL_BADGES.filter(b => unlockedSlugs.has(b.slug) || !b.locked)
-  const lockedBadges = ALL_BADGES.filter(b => !unlockedSlugs.has(b.slug) && b.locked)
+  const earnedBadges = ALL_BADGES.filter(b => unlockedSlugs.has(b.slug))
+  const lockedBadges = ALL_BADGES.filter(b => !unlockedSlugs.has(b.slug))
   const favGames     = library.filter((l: any) => l.is_favorite && l.games?.cover_url).slice(0, 8)
   const userReviews  = library.filter((l: any) => l.review).slice(0, 4)
 
@@ -185,6 +190,26 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
     setSaving(false)
     setEditing(false)
     router.refresh()
+  }
+
+  // ── Steam connect/disconnect ────────────────────────────────────────────
+
+  async function connectSteam() {
+    const id = steamIdInput.trim()
+    if (!id) return
+    setConnectingSteam(true)
+    await supabase.from('profiles').update({ steam_id: id }).eq('id', profile.id)
+    setSteamId(id)
+    setSteamIdInput('')
+    setShowSteamInput(false)
+    setConnectingSteam(false)
+  }
+
+  async function disconnectSteam() {
+    setDisconnectingSteam(true)
+    await supabase.from('profiles').update({ steam_id: null }).eq('id', profile.id)
+    setSteamId('')
+    setDisconnectingSteam(false)
   }
 
   // ── Avatar display ──────────────────────────────────────────────────────
@@ -377,7 +402,7 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Une fois sauvegardé, rendez-vous sur <a href="/steam-import" className="text-primary hover:underline">Importer depuis Steam</a> pour synchroniser vos jeux.
+                  Une fois sauvegardé, rendez-vous sur <a href="/steam" className="text-primary hover:underline">Importer depuis Steam</a> pour synchroniser vos jeux.
                 </p>
               </div>
             </div>
@@ -750,8 +775,8 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
                   {/* Filters */}
                   {(() => {
                     const filtered = badgeFilter === 'all' ? ALL_BADGES
-                      : badgeFilter === 'unlocked' ? ALL_BADGES.filter(b => !b.locked || unlockedSlugs.has(b.slug))
-                      : ALL_BADGES.filter(b => b.locked && !unlockedSlugs.has(b.slug))
+                      : badgeFilter === 'unlocked' ? ALL_BADGES.filter(b => unlockedSlugs.has(b.slug))
+                      : ALL_BADGES.filter(b => !unlockedSlugs.has(b.slug))
                     return (
                       <>
                         <div className="flex gap-2 flex-wrap">
@@ -762,26 +787,58 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
                             </button>
                           ))}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
                           {filtered.map(badge => {
-                            const unlocked = !badge.locked || unlockedSlugs.has(badge.slug)
+                            const unlocked = unlockedSlugs.has(badge.slug)
                             const RARITY_BORDER: Record<string,string> = { common:'border-border', rare:'border-blue-500/40', epic:'border-purple-500/40', legendary:'border-yellow-500/40' }
                             const RARITY_TEXT: Record<string,string> = { common:'text-muted-foreground', rare:'text-blue-400', epic:'text-purple-400', legendary:'text-yellow-400' }
                             return (
-                              <div key={badge.slug} className={`glass rounded-xl p-4 border transition-colors ${unlocked ? RARITY_BORDER[badge.rarity??'common'] : 'border-border opacity-40'}`}>
-                                <span className={`text-3xl block mb-2 text-center ${unlocked ? '' : 'grayscale'}`}>{badge.icon}</span>
-                                <p className="font-semibold text-sm text-foreground text-center">{badge.name}</p>
-                                <p className="text-[11px] text-muted-foreground mt-1 text-center">{badge.desc}</p>
-                                <div className="flex items-center justify-between mt-3">
-                                  <span className={`text-[10px] font-bold uppercase ${RARITY_TEXT[badge.rarity??'common']}`}>{badge.rarity ?? 'common'}</span>
-                                  <span className="text-[10px] text-primary font-bold flex items-center gap-0.5"><Zap className="w-2.5 h-2.5" />+{badge.xp}</span>
-                                </div>
+                              <div key={badge.slug} className={`relative rounded-xl border transition-all overflow-hidden ${unlocked ? RARITY_BORDER[badge.rarity??'common'] : 'border-border/40 opacity-50'}`}
+                                style={{ background: unlocked ? undefined : 'hsl(var(--secondary)/0.3)' }}>
+                                {/* Rarity glow bg */}
                                 {unlocked && (
-                                  <div className="flex items-center justify-center gap-1 mt-2">
-                                    <Trophy className="w-3 h-3 text-primary" />
-                                    <span className="text-[10px] text-primary font-medium">Débloqué !</span>
-                                  </div>
+                                  <div className={`absolute inset-0 opacity-5 ${
+                                    badge.rarity === 'legendary' ? 'bg-yellow-400' :
+                                    badge.rarity === 'epic' ? 'bg-purple-400' :
+                                    badge.rarity === 'rare' ? 'bg-blue-400' : 'bg-primary'
+                                  }`} />
                                 )}
+                                <div className="relative p-3">
+                                  {/* Icon */}
+                                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-2 ${
+                                    unlocked
+                                      ? badge.rarity === 'legendary' ? 'bg-yellow-400/15' :
+                                        badge.rarity === 'epic' ? 'bg-purple-400/15' :
+                                        badge.rarity === 'rare' ? 'bg-blue-400/15' : 'bg-primary/15'
+                                      : 'bg-secondary/50'
+                                  }`}>
+                                    {badge.lucide === 'Gamepad2'  && <Gamepad2Icon className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'PenLine'   && <PenLine      className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Shield'    && <ShieldIcon   className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'BookOpen'  && <BookOpen     className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Star'      && <Star         className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Zap'       && <Zap          className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Crown'     && <Crown        className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Users'     && <Users        className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Target'    && <Target       className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                    {badge.lucide === 'Library'   && <Library      className={`w-4 h-4 ${unlocked ? RARITY_TEXT[badge.rarity??'common'] : 'text-muted-foreground'}`} />}
+                                  </div>
+                                  <p className={`font-semibold text-xs leading-tight ${unlocked ? 'text-foreground' : 'text-muted-foreground'}`}>{badge.name}</p>
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">{badge.desc}</p>
+                                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
+                                    <span className={`text-[9px] font-bold uppercase tracking-wider ${RARITY_TEXT[badge.rarity??'common']}`}>{badge.rarity}</span>
+                                    <span className="text-[9px] text-primary font-bold flex items-center gap-0.5">
+                                      <Zap className="w-2 h-2" />+{badge.xp}
+                                    </span>
+                                  </div>
+                                  {unlocked && (
+                                    <div className="absolute top-2 right-2">
+                                      <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                        <Check className="w-2.5 h-2.5 text-white" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )
                           })}
@@ -806,35 +863,111 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
 
               {/* ── PLATEFORMES ── */}
               {activeTab === 'plateformes' && (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">Connectez vos comptes pour synchroniser votre bibliothèque de jeux.</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {PLATFORMS.map(p => {
-                      const connected = platConnected[p.id] ?? false
-                      return (
-                        <div key={p.id} className={`glass rounded-xl p-5 border transition-colors ${connected ? 'border-primary/40 bg-primary/5' : 'border-border'}`}>
-                          <div className="flex items-center gap-3 mb-4">
-                            <span className="text-2xl">{p.icon}</span>
-                            <div>
-                              <p className="font-semibold text-foreground">{p.name}</p>
-                              <p className={`text-xs ${connected ? 'text-primary' : 'text-muted-foreground'}`}>{connected ? '✓ Connecté' : 'Non connecté'}</p>
-                            </div>
-                          </div>
-                          {p.id === 'steam' && connected && (
-                            <a href="/steam-import" className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors mb-2">
-                              🔄 Synchroniser les jeux
-                            </a>
-                          )}
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-bold text-foreground mb-1">Comptes liés</h2>
+                    <p className="text-sm text-muted-foreground">Connectez vos comptes pour importer et synchroniser votre bibliothèque de jeux.</p>
+                  </div>
+
+                  {/* Steam — carte principale */}
+                  <div className={`glass rounded-xl p-5 border transition-all ${steamId ? 'border-primary/50' : 'border-border'}`}>
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${steamId ? 'bg-primary/15' : 'bg-secondary/60'}`}>
+                        <svg className={`w-7 h-7 ${steamId ? 'text-primary' : 'text-muted-foreground'}`} viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.029 4.524 4.524s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.606 0 11.979 0z"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-foreground">Steam</p>
+                          {steamId
+                            ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">✓ Connecté</span>
+                            : <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-semibold">Non connecté</span>
+                          }
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {steamId ? `ID : ${steamId}` : 'Importez toute votre bibliothèque Steam'}
+                        </p>
+                      </div>
+                      {steamId && (
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                          <a
+                            href={`/steam?autoSync=${encodeURIComponent(steamId)}`}
+                            className="px-2.5 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-90 transition-opacity whitespace-nowrap">
+                            Sync
+                          </a>
                           <button
-                            onClick={() => setPlatConnected(prev => ({ ...prev, [p.id]: !connected }))}
-                            className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                              connected ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-primary/10 text-primary hover:bg-primary/20'
-                            }`}>
-                            {connected ? <><Unlink className="w-3.5 h-3.5" /> Déconnecter</> : <><Link2 className="w-3.5 h-3.5" /> Connecter</>}
+                            onClick={disconnectSteam}
+                            disabled={disconnectingSteam}
+                            className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 whitespace-nowrap">
+                            {disconnectingSteam
+                              ? <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                              : 'Déco'
+                            }
                           </button>
                         </div>
-                      )
-                    })}
+                      )}
+                    </div>
+
+                    {/* Non connecté : formulaire */}
+                    {!steamId && !showSteamInput && (
+                      <button
+                        onClick={() => setShowSteamInput(true)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-semibold hover:bg-primary/20 transition-colors">
+                        <Link2 className="w-4 h-4" /> Connecter Steam
+                      </button>
+                    )}
+
+                    {!steamId && showSteamInput && (
+                      <div className="space-y-2">
+                        <input
+                          autoFocus
+                          value={steamIdInput}
+                          onChange={e => setSteamIdInput(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && connectSteam()}
+                          placeholder="76561198xxxxxxxxx ou steamcommunity.com/id/..."
+                          className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={connectSteam}
+                            disabled={!steamIdInput.trim() || connectingSteam}
+                            className="flex-1 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2">
+                            {connectingSteam
+                              ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              : <><Link2 className="w-4 h-4" /> Connecter</>
+                            }
+                          </button>
+                          <button
+                            onClick={() => { setShowSteamInput(false); setSteamIdInput('') }}
+                            className="px-4 py-2.5 rounded-lg bg-secondary text-muted-foreground text-sm font-semibold hover:bg-secondary/80 transition-colors">
+                            Annuler
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Trouvez votre Steam ID sur{' '}
+                          <a href="https://store.steampowered.com/account" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            store.steampowered.com/account
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Xbox — bientôt disponible */}
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3">Bientôt disponible</p>
+                    <div className="glass rounded-xl p-4 border border-border/40 opacity-60 max-w-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-green-500/10">
+                          <svg className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M4.102 7.836C2.294 9.97 2.09 13.018 3.672 16.16c.52.83 1.186 1.636 1.968 2.348 0 0 1.005-1.186 1.967-2.49C8.71 14.46 9.68 12.096 9.68 12.096s-1.244-1.396-2.638-2.786C5.692 7.918 4.102 7.836 4.102 7.836zm15.796 0s-1.59.082-2.94 1.474C15.564 10.7 14.32 12.096 14.32 12.096s.97 2.364 2.073 3.922c.962 1.304 1.967 2.49 1.967 2.49.782-.712 1.448-1.518 1.968-2.348 1.582-3.142 1.378-6.19-.43-8.324zm-7.9-3.532C10.2 4.168 8.09 4.72 6.272 5.904c-.228.15-.45.312-.67.484 0 0 1.234.164 2.758 1.28.952.694 1.64 1.33 1.64 1.33s.596-.54 1.596-1.24a6.88 6.88 0 0 1 .402-.26 6.88 6.88 0 0 1 .402.26c1 .7 1.596 1.24 1.596 1.24s.688-.636 1.64-1.33c1.524-1.116 2.758-1.28 2.758-1.28a9.876 9.876 0 0 0-.67-.484c-1.818-1.184-3.928-1.736-5.726-1.6zM12 6.862s-.7.52-1.654 1.46c-.952.94-1.502 1.774-1.502 1.774s.55.814 1.502 1.774c.954.94 1.654 1.46 1.654 1.46s.7-.52 1.654-1.46c.952-.96 1.502-1.774 1.502-1.774s-.55-.834-1.502-1.774C12.7 7.382 12 6.862 12 6.862z"/></svg>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm text-foreground">Xbox</p>
+                          <p className="text-[10px] text-muted-foreground font-medium">Bientôt disponible</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

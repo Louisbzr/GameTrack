@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Settings as SettingsIcon, Bell, Globe, Eye, Shield, Palette,
   Monitor, Smartphone, Mail, MessageSquare, Trophy, Users,
-  Clock, Download, Trash2, Save, Check, ChevronDown, Volume2
+  Clock, Download, Trash2, Save, Check, ChevronDown, Volume2,
+  Camera, User, FileText, ExternalLink, Lock
 } from 'lucide-react'
+import CropModal from '@/components/CropModal'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
 import { useSettings, DEFAULT_SETTINGS, AppSettings } from '@/components/SettingsProvider'
 
-interface Props { userId: string; username: string }
+interface Props { userId: string; username: string; email?: string; avatarUrl?: string | null; avatarColor?: string }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -79,7 +81,7 @@ function Section({ title, icon: Icon, children }: { title: string; icon: any; ch
   )
 }
 
-export default function SettingsPage({ userId, username }: Props) {
+export default function SettingsPage({ userId, username, email, avatarUrl: initialAvatarUrl, avatarColor = 'forest' }: Props) {
   const supabase  = createClient()
   const router    = useRouter()
   const { theme, setTheme } = useTheme()
@@ -89,6 +91,12 @@ export default function SettingsPage({ userId, username }: Props) {
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
   const [loading,  setLoading]  = useState(true)
+  const [avatarUrl, setAvatarUrl] = useState<string|null>(initialAvatarUrl ?? null)
+  const [cropSrc,  setCropSrc]  = useState<string|null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const AVATAR_COLORS: Record<string,string> = { forest:'#22c55e', ocean:'#3b82f6', fire:'#f97316', violet:'#a855f7', rose:'#ec4899', gold:'#f59e0b', ice:'#06b6d4', slate:'#64748b' }
+  const aColor = AVATAR_COLORS[avatarColor] ?? '#22c55e'
 
   useEffect(() => {
     supabase.from('profiles').select('settings').eq('id', userId).maybeSingle()
@@ -104,6 +112,29 @@ export default function SettingsPage({ userId, username }: Props) {
     setSettings(next)
     applyGlobal({ [key]: value })
     setSaved(false)
+  }
+
+  async function handleAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setCropSrc(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  async function handleCropConfirm(blob: Blob) {
+    setUploadingAvatar(true)
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+    const { error } = await supabase.storage.from('avatars').upload(`${userId}/avatar.jpg`, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('avatars').getPublicUrl(`${userId}/avatar.jpg`)
+      const url = data.publicUrl + '?t=' + Date.now()
+      setAvatarUrl(url)
+      await supabase.from('profiles').update({ avatar_url: url }).eq('id', userId)
+    }
+    setCropSrc(null)
+    setUploadingAvatar(false)
   }
 
   async function handleSave() {
@@ -149,6 +180,7 @@ export default function SettingsPage({ userId, username }: Props) {
   )
 
   return (
+    <>
     <div className="min-h-screen pt-24 pb-16 bg-background" onClick={() => {}}>
       <div className="container mx-auto px-4 max-w-3xl space-y-6">
 
@@ -257,6 +289,36 @@ export default function SettingsPage({ userId, username }: Props) {
           </SettingRow>
         </Section>
 
+        {/* Compte */}
+        <Section title="Mon compte" icon={User}>
+          <SettingRow icon={Camera} label="Photo de profil" description="Votre avatar visible sur votre profil et dans les avis">
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10 flex-shrink-0">
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="avatar" className="w-10 h-10 rounded-full object-cover ring-2 ring-border" />
+                  : <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ring-2 ring-border" style={{ backgroundColor: aColor }}>{username.slice(0,2).toUpperCase()}</div>
+                }
+              </div>
+              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/30 text-sm text-foreground hover:bg-secondary transition-colors disabled:opacity-50">
+                {uploadingAvatar ? <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                Changer
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
+            </div>
+          </SettingRow>
+          <SettingRow icon={User} label="Nom d'utilisateur" description="Votre identifiant public sur GameTrack">
+            <a href="/profile" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/30 text-sm text-foreground hover:bg-secondary transition-colors">
+              @{username} <ExternalLink className="w-3 h-3 text-muted-foreground" />
+            </a>
+          </SettingRow>
+          {email && (
+            <SettingRow icon={Mail} label="Adresse e-mail" description="Utilisée pour la connexion et les notifications">
+              <span className="text-sm text-muted-foreground">{email}</span>
+            </SettingRow>
+          )}
+        </Section>
+
         {/* Données */}
         <Section title="Données & compte" icon={Download}>
           <SettingRow icon={Download} label="Exporter mes données" description="Télécharger votre collection, avis et paramètres en JSON">
@@ -279,7 +341,45 @@ export default function SettingsPage({ userId, username }: Props) {
           </SettingRow>
         </Section>
 
+        {/* Politique de confidentialité */}
+        <Section title="Politique de confidentialité" icon={FileText}>
+          <div className="py-3 space-y-4 text-sm text-muted-foreground leading-relaxed">
+            <p>GameTrack collecte uniquement les données nécessaires au fonctionnement de l'application : votre adresse e-mail, pseudo, bibliothèque de jeux et préférences.</p>
+            <div className="space-y-2">
+              {[
+                { icon: Lock, title: 'Données collectées', text: 'Email, pseudo, bibliothèque de jeux, avis, paramètres et éventuellement votre Steam ID si vous le renseignez.' },
+                { icon: Eye, title: 'Utilisation', text: 'Vos données sont utilisées uniquement pour faire fonctionner GameTrack. Elles ne sont jamais vendues ni partagées avec des tiers.' },
+                { icon: Shield, title: 'Sécurité', text: 'Toutes les données sont stockées de manière sécurisée via Supabase avec chiffrement au repos et en transit.' },
+                { icon: Trash2, title: 'Suppression', text: 'Vous pouvez supprimer votre compte et toutes vos données à tout moment depuis la section "Données & compte" ci-dessus.' },
+              ].map(({ icon: Icon, title, text }) => (
+                <div key={title} className="flex gap-3 p-3 rounded-lg bg-secondary/30">
+                  <Icon className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground text-xs mb-0.5">{title}</p>
+                    <p className="text-xs">{text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground/70">Dernière mise à jour : Avril 2026 · GameTrack est un projet personnel.</p>
+          </div>
+        </Section>
+
       </div>
     </div>
+
+    {/* Crop modal avatar */}
+    {cropSrc && (
+      <CropModal
+        imageSrc={cropSrc}
+        aspect={1}
+        shape="circle"
+        outputWidth={400}
+        outputHeight={400}
+        onConfirm={handleCropConfirm}
+        onCancel={() => setCropSrc(null)}
+      />
+    )}
+    </>
   )
 }
