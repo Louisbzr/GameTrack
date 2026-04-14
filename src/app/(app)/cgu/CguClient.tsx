@@ -18,15 +18,15 @@ export default function CguClient() {
           {[
             {
               title: "1. Acceptation des conditions",
-              content: "En accédant et en utilisant GameTrack, vous acceptez d'être lié par ces Conditions Générales d'Utilisation. Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser l'application."
+              content: "En accédant et en utilisant Backlogg, vous acceptez d'être lié par ces Conditions Générales d'Utilisation. Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser l'application."
             },
             {
               title: "2. Description du service",
-              content: "GameTrack est une application web permettant de suivre, noter et partager votre expérience de jeux vidéo. Le service est fourni gratuitement et peut être modifié ou interrompu à tout moment."
+              content: "Backlogg est une application web permettant de suivre, noter et partager votre expérience de jeux vidéo. Le service est fourni gratuitement et peut être modifié ou interrompu à tout moment."
             },
             {
               title: "3. Inscription et compte",
-              content: "Pour utiliser GameTrack, vous devez créer un compte avec une adresse e-mail valide. Vous êtes responsable de la confidentialité de votre mot de passe et de toutes les activités effectuées depuis votre compte. Vous devez avoir au moins 13 ans pour utiliser ce service."
+              content: "Pour utiliser Backlogg, vous devez créer un compte avec une adresse e-mail valide. Vous êtes responsable de la confidentialité de votre mot de passe et de toutes les activités effectuées depuis votre compte. Vous devez avoir au moins 13 ans pour utiliser ce service."
             },
             {
               title: "4. Contenu utilisateur",
@@ -34,7 +34,7 @@ export default function CguClient() {
             },
             {
               title: "5. Propriété intellectuelle",
-              content: "Les données de jeux proviennent de l'API IGDB (Twitch). Les noms, logos et images de jeux vidéo sont la propriété de leurs éditeurs respectifs. GameTrack ne revendique aucun droit sur ces contenus."
+              content: "Les données de jeux proviennent de l'API IGDB (Twitch). Les noms, logos et images de jeux vidéo sont la propriété de leurs éditeurs respectifs. Backlogg ne revendique aucun droit sur ces contenus."
             },
             {
               title: "6. Données personnelles",
@@ -42,7 +42,7 @@ export default function CguClient() {
             },
             {
               title: "7. Limitation de responsabilité",
-              content: "GameTrack est fourni 'tel quel', sans garantie d'aucune sorte. Nous ne sommes pas responsables des interruptions de service, pertes de données ou dommages indirects résultant de l'utilisation de l'application."
+              content: "Backlogg est fourni 'tel quel', sans garantie d'aucune sorte. Nous ne sommes pas responsables des interruptions de service, pertes de données ou dommages indirects résultant de l'utilisation de l'application."
             },
             {
               title: "8. Modification des conditions",

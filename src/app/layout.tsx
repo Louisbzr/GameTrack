@@ -3,7 +3,7 @@ import './globals.css'
 import { ThemeProvider, themeScript } from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
-  title: 'GameTrack',
+  title: 'Backlogg',
   description: 'Suivez et découvrez vos jeux vidéo',
 }
 

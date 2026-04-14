@@ -47,7 +47,7 @@ export default function SuggestionsClient({ userId }: Props) {
             <Lightbulb className="w-7 h-7 text-primary" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Suggestions</h1>
-          <p className="text-muted-foreground">Votre avis nous aide à améliorer GameTrack.</p>
+          <p className="text-muted-foreground">Votre avis nous aide à améliorer Backlogg.</p>
         </div>
 
         {done ? (

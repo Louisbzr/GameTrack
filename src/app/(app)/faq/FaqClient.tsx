@@ -7,9 +7,9 @@ const FAQS = [
   {
     category: 'Général',
     items: [
-      { q: "C'est quoi GameTrack ?", a: "GameTrack est une application pour suivre vos jeux vidéo, écrire des avis, découvrir de nouvelles sorties et partager votre passion avec d'autres joueurs. Pensez-y comme un Letterboxd, mais pour les jeux." },
-      { q: "GameTrack est-il gratuit ?", a: "Oui, GameTrack est entièrement gratuit. Toutes les fonctionnalités sont accessibles sans abonnement." },
-      { q: "Sur quelles plateformes est-il disponible ?", a: "GameTrack est une application web accessible depuis n'importe quel navigateur, sur ordinateur et mobile." },
+      { q: "C'est quoi Backlogg ?", a: "Backlogg est une application pour suivre vos jeux vidéo, écrire des avis, découvrir de nouvelles sorties et partager votre passion avec d'autres joueurs. Pensez-y comme un Letterboxd, mais pour les jeux." },
+      { q: "Backlogg est-il gratuit ?", a: "Oui, Backlogg est entièrement gratuit. Toutes les fonctionnalités sont accessibles sans abonnement." },
+      { q: "Sur quelles plateformes est-il disponible ?", a: "Backlogg est une application web accessible depuis n'importe quel navigateur, sur ordinateur et mobile." },
     ]
   },
   {
@@ -67,7 +67,7 @@ export default function FaqClient() {
             <HelpCircle className="w-7 h-7 text-primary" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Questions fréquentes</h1>
-          <p className="text-muted-foreground">Tout ce que vous devez savoir sur GameTrack.</p>
+          <p className="text-muted-foreground">Tout ce que vous devez savoir sur Backlogg.</p>
         </div>
 
         {/* Category tabs */}

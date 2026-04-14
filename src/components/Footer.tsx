@@ -15,7 +15,7 @@ export default function Footer() {
           <div className="space-y-4">
             <Link href="/discover" className="flex items-center gap-2">
               <Gamepad2 className="w-6 h-6 text-primary neon-text" />
-              <span className="font-bold text-lg text-foreground tracking-tight">GameTrack</span>
+              <span className="font-bold text-lg text-foreground tracking-tight">Backlogg</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Suivez vos jeux, partagez vos avis, découvrez de nouvelles aventures.
@@ -105,7 +105,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="border-t border-border/30 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            © {year} GameTrack · Fait avec <Heart className="w-3 h-3 inline text-red-400 fill-red-400" /> par des passionnés
+            © {year} Backlogg · Fait avec <Heart className="w-3 h-3 inline text-red-400 fill-red-400" /> par des passionnés
           </p>
           <p className="text-xs text-muted-foreground">
             Données de jeux fournies par <a href="https://www.igdb.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">IGDB</a>

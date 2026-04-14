@@ -74,7 +74,7 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-2">
             <Gamepad2 className="w-9 h-9 text-primary" />
-            <span className="text-2xl font-bold text-foreground">GameTrack</span>
+            <span className="text-2xl font-bold text-foreground">Backlogg</span>
           </div>
           <div className="flex items-center justify-center gap-2 mt-4">
             {[1, 2].map(s => (
@@ -146,7 +146,7 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
                 Choisissez votre couleur
               </h2>
               <p className="text-muted-foreground text-sm mt-1">
-                Elle représentera votre avatar sur GameTrack.
+                Elle représentera votre avatar sur Backlogg.
               </p>
             </div>
 

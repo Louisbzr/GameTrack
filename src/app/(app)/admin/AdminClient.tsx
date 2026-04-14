@@ -84,7 +84,7 @@ export default function AdminClient({ stats, reports: initialReports, recentUser
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Dashboard Admin</h1>
-            <p className="text-sm text-muted-foreground">Gestion de GameTrack</p>
+            <p className="text-sm text-muted-foreground">Gestion de Backlogg</p>
           </div>
         </div>
 

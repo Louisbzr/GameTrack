@@ -209,7 +209,7 @@ export default function SteamImportClient({ userId }: { userId: string }) {
                   Bibliothèque déjà à jour !
                 </h2>
                 <p className="text-sm text-ink-muted dark:text-ink-subtle mb-8">
-                  Tous tes jeux Steam ({result.skipped}) sont déjà dans ta bibliothèque GameTrack.
+                  Tous tes jeux Steam ({result.skipped}) sont déjà dans ta bibliothèque Backlogg.
                 </p>
               </>
             ) : (

@@ -283,7 +283,7 @@ export default function FeedClient({ userId, events, friends, recentGames = [], 
             Inviter des <em className="italic text-amber">amis</em>
           </h3>
           <p className="text-xs text-ink-muted dark:text-ink-subtle mb-3 leading-relaxed">
-            Partage le lien d'inscription GameTrack
+            Partage le lien d'inscription Backlogg
           </p>
           <button onClick={copyInvite}
             className="w-full bg-ink dark:bg-surface-dark text-paper dark:text-ink-dark rounded-[var(--radius-sm)] py-2.5 text-xs font-semibold hover:bg-amber hover:text-black transition-colors">

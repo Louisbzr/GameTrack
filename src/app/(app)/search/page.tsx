@@ -134,7 +134,7 @@ export default function SearchClient() {
         <div className="mb-6">
           <p className="text-[10px] font-semibold text-ink-subtle uppercase tracking-widest mb-1.5">Recherche</p>
           <h1 className="font-serif text-3xl lg:text-4xl font-black tracking-tight leading-none text-ink dark:text-ink-dark">
-            <em className="italic text-amber">Chercher</em> sur GameTrack
+            <em className="italic text-amber">Chercher</em> sur Backlogg
           </h1>
         </div>
 

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import Navbar from '@/components/layout/Navbar'
 import ReleasesClient from './ReleasesClient'
 
-export const metadata = { title: 'Sorties de la semaine – GameTrack' }
+export const metadata = { title: 'Sorties de la semaine – Backlogg' }
 
 export default async function ReleasesPage() {
   const supabase = await createClient()

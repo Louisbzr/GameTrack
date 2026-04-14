@@ -130,7 +130,7 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/discover" className="flex items-center gap-2">
           <Gamepad2 className="w-7 h-7 text-primary neon-text" />
-          <span className="font-bold text-xl neon-text hidden sm:block tracking-tight">GameTrack</span>
+          <span className="font-bold text-xl neon-text hidden sm:block tracking-tight">Backlogg</span>
         </Link>
 
         <div className="flex items-center gap-1">
