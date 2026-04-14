@@ -155,7 +155,7 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
             </button>
 
             {searchOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl border border-border shadow-xl z-50 overflow-hidden"
+              <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 sm:w-96 rounded-xl border border-border shadow-xl z-50 overflow-hidden"
                 style={{ backgroundColor: 'hsl(var(--background))' }}>
                 {/* Input */}
                 <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
@@ -165,7 +165,7 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
                     value={searchQuery}
                     onChange={e => handleSearchInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Escape') closeSearch() }}
-                    placeholder="Cherchez un utilisteur..."
+                    placeholder="Jeux, joueurs..."
                     className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
                   />
                   {searching && <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />}

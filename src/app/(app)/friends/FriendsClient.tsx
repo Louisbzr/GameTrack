@@ -316,7 +316,7 @@ export default function FriendsClient({ userId, friends: initialFriends, pending
               {friends.map(friend => (
                 <div key={friend.id} className="glass rounded-xl p-3 flex items-center gap-3 group">
                   <AvatarBubble user={friend} size={9} />
-                  <Link href={`/profile/${friend.id}`} className="flex-1 min-w-0 hover:text-primary transition-colors">
+                  <Link href={`/${friend.username}`} className="flex-1 min-w-0 hover:text-primary transition-colors">
                     <p className="font-semibold text-sm text-foreground truncate group-hover:text-primary">{friend.username}</p>
                     <p className="text-xs text-muted-foreground">Niv. {friend.level}</p>
                   </Link>
@@ -386,7 +386,7 @@ export default function FriendsClient({ userId, friends: initialFriends, pending
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-foreground">
-                          <Link href={`/profile/${item.user_id}`} className="font-bold hover:text-primary transition-colors">{item.username}</Link>
+                          <Link href={`/${item.username}`} className="font-bold hover:text-primary transition-colors">{item.username}</Link>
                           {' '}
                           <span className="text-muted-foreground">{ACTIVITY_LABEL[item.type] ?? 'a interagi avec'}</span>
                         </p>

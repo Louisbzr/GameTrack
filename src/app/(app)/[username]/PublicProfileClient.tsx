@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Gamepad2, MessageSquare, Users, Trophy, Zap, Heart, Star,
-  BarChart3, UserPlus, UserCheck, Clock, Target,
+  BarChart3, UserPlus, UserCheck, Clock, Target, Flag,
   PenLine, Shield, BookOpen, Crown, Library, Check, Lock
 } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
+import ReportModal from '@/components/ReportModal'
 
 const ALL_BADGES = [
   { slug: 'first_blood',    lucide: 'Gamepad2', name: 'Premier Pas',     desc: 'Jouer à votre premier jeu',  xp: 50,   rarity: 'common'    },
@@ -87,7 +88,8 @@ export default function PublicProfileClient({
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>(
     isFriend ? 'friends' : hasPendingRequest ? 'pending' : 'none'
   )
-  const [activeTab, setActiveTab] = useState<'jeux' | 'avis' | 'stats' | 'succes'>('jeux')
+  const [activeTab,  setActiveTab]  = useState<'jeux' | 'avis' | 'stats' | 'succes'>('jeux')
+  const [reporting,  setReporting]  = useState(false)
 
   const router   = useRouter()
   const supabase = createClient()
@@ -189,7 +191,7 @@ export default function PublicProfileClient({
             {profile?.bio && <p className="text-sm text-muted-foreground mt-1 max-w-md">{profile.bio}</p>}
           </div>
           {!isOwner && viewerId && (
-            <div className="flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {friendStatus === 'friends' && (
                 <button onClick={removeFriend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl glass text-sm font-semibold text-primary hover:text-red-400 transition-colors">
                   <UserCheck className="w-4 h-4" /> Amis
@@ -205,6 +207,11 @@ export default function PublicProfileClient({
                   <UserPlus className="w-4 h-4" /> Ajouter
                 </button>
               )}
+              <button onClick={() => setReporting(true)}
+                className="p-2.5 rounded-xl glass text-muted-foreground hover:text-red-400 transition-colors"
+                title="Signaler ce profil">
+                <Flag className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>
@@ -462,6 +469,14 @@ export default function PublicProfileClient({
           </div>
         )}
       </div>
+      {reporting && viewerId && (
+        <ReportModal
+          targetType="profile"
+          targetId={targetUserId}
+          reporterId={viewerId}
+          onClose={() => setReporting(false)}
+        />
+      )}
     </div>
   )
 }

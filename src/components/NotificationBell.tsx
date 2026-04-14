@@ -53,7 +53,16 @@ export default function NotificationBell({ userId }: Props) {
         .order('created_at', { ascending: false })
         .limit(20)
 
-      setNotifs(data || [])
+      // Déduplique les notifs de même type du même expéditeur (garde la plus récente)
+      const raw = data || []
+      const seen = new Set<string>()
+      const deduped = raw.filter((n: any) => {
+        const key = `${n.type}-${n.data?.requester_id ?? n.data?.from_user ?? n.id}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      setNotifs(deduped)
       setLoading(false)
     }
     fetchNotifs()
@@ -124,7 +133,7 @@ export default function NotificationBell({ userId }: Props) {
       {/* ── Dropdown panel ── */}
       {open && (
         <div
-          className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 sm:w-80 rounded-xl shadow-xl border border-border overflow-hidden z-50"
+          className="absolute right-0 top-full mt-2 w-80 rounded-xl shadow-xl border border-border overflow-hidden z-50"
           style={{ maxHeight: '440px', backgroundColor: 'hsl(var(--background))' }}
         >
           {/* Header */}

@@ -89,12 +89,12 @@ export default function AdminClient({ stats, reports: initialReports, recentUser
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-secondary/40 border border-border p-1 rounded-xl mb-8">
+        <div className="flex gap-1 bg-secondary/40 border border-border p-1 rounded-xl mb-8 overflow-x-auto no-scrollbar">
           {TABS.map(tab => {
             const Icon = tab.icon
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all flex-1 justify-center ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all flex-shrink-0 justify-center ${
                   activeTab === tab.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}>
                 <Icon className="w-4 h-4" />{tab.label}
