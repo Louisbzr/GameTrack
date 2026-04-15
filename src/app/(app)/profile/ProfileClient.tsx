@@ -106,6 +106,18 @@ export default function ProfileClient({ profile, library, badges, xpHistory, sta
   const [cropSrc,    setCropSrc]    = useState<string | null>(null)
   const [cropMode,   setCropMode]   = useState<'avatar' | 'banner' | null>(null)
 
+  // ── Guard: profil null (ne devrait pas arriver mais évite le crash blanc) ──
+  if (!profile) {
+    return (
+      <div className="min-h-screen pt-16 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground text-sm">Chargement du profil…</p>
+        </div>
+      </div>
+    )
+  }
+
   const earnedBadges = ALL_BADGES.filter(b => unlockedSlugs.has(b.slug))
   const lockedBadges = ALL_BADGES.filter(b => !unlockedSlugs.has(b.slug))
   const favGames     = library.filter((l: any) => l.is_favorite && l.games?.cover_url).slice(0, 8)

@@ -2,46 +2,47 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Gamepad2, Check, ArrowRight, Sparkles } from 'lucide-react'
+import { Gamepad2, Check, ArrowRight, Sparkles, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const GENRES = [
-  { id: 'Action',          emoji: '⚔️' },
-  { id: 'Adventure',       emoji: '🗺️' },
-  { id: 'Role-playing (RPG)', emoji: '🧙' },
-  { id: 'Strategy',        emoji: '♟️' },
-  { id: 'Shooter',         emoji: '🎯' },
-  { id: 'Sports',          emoji: '⚽' },
-  { id: 'Racing',          emoji: '🏎️' },
-  { id: 'Puzzle',          emoji: '🧩' },
-  { id: 'Horror',          emoji: '👻' },
-  { id: 'Platform',        emoji: '🍄' },
-  { id: 'Fighting',        emoji: '🥊' },
-  { id: 'Simulation',      emoji: '🏗️' },
-  { id: 'Indie',           emoji: '🎨' },
-  { id: 'Hack and slash',  emoji: '🗡️' },
-  { id: 'MOBA',            emoji: '🏆' },
+  { id: 'Action',               emoji: '⚔️' },
+  { id: 'Adventure',            emoji: '🗺️' },
+  { id: 'Role-playing (RPG)',   emoji: '🧙' },
+  { id: 'Strategy',             emoji: '♟️' },
+  { id: 'Shooter',              emoji: '🎯' },
+  { id: 'Sports',               emoji: '⚽' },
+  { id: 'Racing',               emoji: '🏎️' },
+  { id: 'Puzzle',               emoji: '🧩' },
+  { id: 'Horror',               emoji: '👻' },
+  { id: 'Platform',             emoji: '🍄' },
+  { id: 'Fighting',             emoji: '🥊' },
+  { id: 'Simulation',           emoji: '🏗️' },
+  { id: 'Indie',                emoji: '🎨' },
+  { id: 'Hack and slash',       emoji: '🗡️' },
+  { id: 'MOBA',                 emoji: '🏆' },
 ]
 
 const AVATAR_COLORS = [
-  { id: 'forest',  label: 'Forêt',    color: '#22c55e' },
-  { id: 'ocean',   label: 'Océan',    color: '#3b82f6' },
-  { id: 'fire',    label: 'Feu',      color: '#f97316' },
-  { id: 'violet',  label: 'Violet',   color: '#a855f7' },
-  { id: 'rose',    label: 'Rose',     color: '#ec4899' },
-  { id: 'gold',    label: 'Or',       color: '#f59e0b' },
-  { id: 'ice',     label: 'Glace',    color: '#06b6d4' },
-  { id: 'slate',   label: 'Ardoise',  color: '#64748b' },
+  { id: 'forest',  label: 'Forêt',   color: '#22c55e' },
+  { id: 'ocean',   label: 'Océan',   color: '#3b82f6' },
+  { id: 'fire',    label: 'Feu',     color: '#f97316' },
+  { id: 'violet',  label: 'Violet',  color: '#a855f7' },
+  { id: 'rose',    label: 'Rose',    color: '#ec4899' },
+  { id: 'gold',    label: 'Or',      color: '#f59e0b' },
+  { id: 'ice',     label: 'Glace',   color: '#06b6d4' },
+  { id: 'slate',   label: 'Ardoise', color: '#64748b' },
 ]
 
 export default function OnboardingPage({ userId, username }: { userId: string; username: string }) {
-  const router = useRouter()
+  const router  = useRouter()
   const supabase = createClient()
 
-  const [step,          setStep]          = useState(1)
-  const [selGenres,     setSelGenres]     = useState<string[]>([])
-  const [avatarColor,   setAvatarColor]   = useState('forest')
-  const [loading,       setLoading]       = useState(false)
+  const [step,        setStep]        = useState(1)
+  const [selGenres,   setSelGenres]   = useState<string[]>([])
+  const [avatarColor, setAvatarColor] = useState('forest')
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
 
   function toggleGenre(g: string) {
     setSelGenres(prev =>
@@ -51,15 +52,22 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
 
   async function handleFinish() {
     setLoading(true)
-    await supabase.from('profiles').upsert({
-      id: userId,
-      username,
-      avatar_color: avatarColor,
-      favorite_genres: selGenres,
-      onboarded: true,
-    })
-    router.push('/discover')
-    router.refresh()
+    setError(null)
+    try {
+      const { error: upsertError } = await supabase.from('profiles').upsert({
+        id: userId,
+        username,
+        avatar_color: avatarColor,
+        favorite_genres: selGenres,
+        onboarded: true,
+      })
+      if (upsertError) throw upsertError
+      router.push('/discover')
+      router.refresh()
+    } catch (err: any) {
+      setError(err?.message ?? 'Une erreur est survenue. Réessaie dans quelques secondes.')
+      setLoading(false)
+    }
   }
 
   return (
@@ -76,6 +84,8 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
             <Gamepad2 className="w-9 h-9 text-primary" />
             <span className="text-2xl font-bold text-foreground">Backlogg</span>
           </div>
+          <p className="text-sm text-muted-foreground mt-1">Bienvenue, {username} 👋</p>
+          {/* Progress */}
           <div className="flex items-center justify-center gap-2 mt-4">
             {[1, 2].map(s => (
               <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${
@@ -83,6 +93,7 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
               }`} />
             ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-2">Étape {step} sur 2</p>
         </div>
 
         {/* Step 1 — Genres */}
@@ -94,7 +105,7 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
                 Quels genres aimez-vous ?
               </h2>
               <p className="text-muted-foreground text-sm mt-1">
-                Choisissez au moins 3 genres pour personnaliser vos recommandations.
+                Choisissez au moins un genre pour personnaliser vos recommandations.
               </p>
             </div>
 
@@ -178,10 +189,19 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
               ))}
             </div>
 
+            {/* Error message */}
+            {error && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <button
-                onClick={() => setStep(1)}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => { setStep(1); setError(null) }}
+                disabled={loading}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 ← Retour
               </button>
@@ -191,7 +211,7 @@ export default function OnboardingPage({ userId, username }: { userId: string; u
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {loading
-                  ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ? <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Enregistrement...</>
                   : <><Sparkles className="w-4 h-4" /> Commencer !</>
                 }
               </button>
