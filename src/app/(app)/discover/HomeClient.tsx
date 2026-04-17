@@ -29,6 +29,7 @@ interface Props {
   friendReviews: any[]
   popularGames: { count: number; game: any }[]
   popularReviews: any[]
+  recentlyVisited: any[]
 }
 
 const PLATFORM_SHORT: Record<string, string> = {
