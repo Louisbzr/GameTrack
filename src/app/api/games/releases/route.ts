@@ -63,8 +63,8 @@ export async function GET(request: Request) {
 
     let fromTs: number, toTs: number, from: string, to: string
     if (fromParam && toParam) {
-      from  = fromParam
-      to    = toParam
+      from   = fromParam
+      to     = toParam
       fromTs = Math.floor(new Date(from).getTime() / 1000)
       toTs   = Math.floor(new Date(to + 'T23:59:59').getTime() / 1000)
     } else {
@@ -72,26 +72,7 @@ export async function GET(request: Request) {
       fromTs = range.fromTs; toTs = range.toTs; from = range.from; to = range.to
     }
 
-    // Récupérer TOUTES les release_dates de la semaine
-    // On ne filtre PAS par version_parent ici pour attraper les re-releases, remasters, NSO, etc.
-    const releaseDates = await igdb('release_dates', `
-      fields game, date, platform.name, region;
-      where date >= ${fromTs} & date <= ${toTs} & game != null;
-      limit 500;
-    `)
-
-    if (!releaseDates?.length) {
-      return NextResponse.json({ results: [], from, to })
-    }
-
-    // Dédupliquer les game ids
-    const gameIds: number[] = [...new Set((releaseDates as any[]).map((r: any) => r.game).filter(Boolean))]
-
-    if (!gameIds.length) {
-      return NextResponse.json({ results: [], from, to })
-    }
-
-    // Récupérer les détails — on NE filtre pas version_parent pour inclure les re-releases
+    // first_release_date = vraie première sortie du jeu, pas les sorties sur nouvelles plateformes
     const games = await igdb('games', `
       fields
         name,
@@ -101,42 +82,45 @@ export async function GET(request: Request) {
         first_release_date,
         rating,
         rating_count,
-        slug,
-        version_parent;
-      where id = (${gameIds.join(',')});
+        category;
+      where first_release_date >= ${fromTs}
+        & first_release_date <= ${toTs}
+        & (category = (0,8,9,10) | category = null);
+      sort first_release_date asc;
       limit 500;
     `)
 
-    // Map date de sortie par game id (prendre la date la plus récente dans la semaine)
-    const releaseDateByGame: Record<number, number> = {}
-    for (const r of releaseDates as any[]) {
-      if (!r.game || !r.date) continue
-      const existing = releaseDateByGame[r.game]
-      if (!existing || r.date > existing) releaseDateByGame[r.game] = r.date
+    if (!games?.length) {
+      return NextResponse.json({ results: [], from, to })
     }
 
     const today = new Date().toISOString().slice(0, 10)
 
     const results = (games as any[])
       .map((g: any) => {
-        const releaseTs = releaseDateByGame[g.id] ?? g.first_release_date
+        const categoryLabel =
+          g.category === 8  ? 'Remake'           :
+          g.category === 9  ? 'Remaster'          :
+          g.category === 10 ? 'Extended Edition'  :
+          null
         return {
-          igdb_id:      g.id,
-          name:         g.name,
-          cover_url:    coverUrl(g.cover?.image_id),
-          released:     releaseTs ? new Date(releaseTs * 1000).toISOString().slice(0, 10) : null,
-          genres:       (g.genres    ?? []).map((x: any) => x.name),
-          platforms:    (g.platforms ?? []).map((p: any) => p.name),
-          metacritic:   g.rating ? Math.round(g.rating) : null,
-          rating_count: g.rating_count ?? 0,
+          igdb_id:        g.id,
+          name:           g.name,
+          cover_url:      coverUrl(g.cover?.image_id),
+          released:       g.first_release_date
+            ? new Date(g.first_release_date * 1000).toISOString().slice(0, 10)
+            : null,
+          genres:         (g.genres    ?? []).map((x: any) => x.name),
+          platforms:      (g.platforms ?? []).map((p: any) => p.name),
+          metacritic:     g.rating ? Math.round(g.rating) : null,
+          rating_count:   g.rating_count ?? 0,
+          category_label: categoryLabel,
         }
       })
       .sort((a, b) => {
-        // 1. Sorties du jour en premier
         const aToday = a.released === today ? 1 : 0
         const bToday = b.released === today ? 1 : 0
         if (bToday !== aToday) return bToday - aToday
-        // 2. Puis par rating_count décroissant (les plus connus)
         return b.rating_count - a.rating_count
       })
 

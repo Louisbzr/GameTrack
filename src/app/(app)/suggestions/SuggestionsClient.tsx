@@ -1,15 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Lightbulb, Send, Check, ThumbsUp, Zap } from 'lucide-react'
+import { Lightbulb, Send, Check, Sparkles, Palette, Bug, Database, MessageSquare } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const CATEGORIES = [
-  { value: 'feature',  label: '✨ Nouvelle fonctionnalité' },
-  { value: 'ui',       label: '🎨 Interface / Design' },
-  { value: 'bug',      label: '🐛 Signaler un bug' },
-  { value: 'content',  label: '🎮 Contenu / Données' },
-  { value: 'other',    label: '💬 Autre' },
+  { value: 'feature', label: 'Nouvelle fonctionnalité', icon: Sparkles,    color: 'text-amber-400',   bg: 'bg-amber-400/10'   },
+  { value: 'ui',      label: 'Interface / Design',      icon: Palette,     color: 'text-purple-400',  bg: 'bg-purple-400/10'  },
+  { value: 'bug',     label: 'Signaler un bug',         icon: Bug,         color: 'text-red-400',     bg: 'bg-red-400/10'     },
+  { value: 'content', label: 'Contenu / Données',       icon: Database,    color: 'text-blue-400',    bg: 'bg-blue-400/10'    },
+  { value: 'other',   label: 'Autre',                   icon: MessageSquare, color: 'text-muted-foreground', bg: 'bg-secondary/60' },
 ]
 
 interface Props { userId: string }
@@ -58,7 +58,7 @@ export default function SuggestionsClient({ userId }: Props) {
             <h2 className="text-xl font-bold text-foreground mb-2">Merci !</h2>
             <p className="text-muted-foreground mb-6">Votre suggestion a bien été envoyée. Nous la lirons attentivement.</p>
             <div className="flex items-center justify-center gap-2 text-sm text-primary">
-              <Zap className="w-4 h-4" />
+              
               <span className="font-semibold">+10 XP pour votre contribution</span>
             </div>
             <button onClick={() => { setDone(false); setTitle(''); setBody(''); setCategory('') }}
@@ -73,16 +73,23 @@ export default function SuggestionsClient({ userId }: Props) {
             <div>
               <p className="text-sm font-semibold text-foreground mb-2">Catégorie <span className="text-red-400">*</span></p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {CATEGORIES.map(c => (
-                  <button key={c.value} onClick={() => setCategory(c.value)}
-                    className={`px-4 py-2.5 rounded-lg text-sm text-left transition-colors font-medium ${
-                      category === c.value
-                        ? 'bg-primary/15 text-primary border border-primary/30'
-                        : 'bg-secondary/50 text-foreground hover:bg-secondary border border-transparent'
-                    }`}>
-                    {c.label}
-                  </button>
-                ))}
+                {CATEGORIES.map(c => {
+                  const Icon = c.icon
+                  const active = category === c.value
+                  return (
+                    <button key={c.value} onClick={() => setCategory(c.value)}
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-left transition-colors font-medium ${
+                        active
+                          ? 'bg-primary/15 text-primary border border-primary/30'
+                          : 'bg-secondary/50 text-foreground hover:bg-secondary border border-transparent'
+                      }`}>
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${active ? 'bg-primary/20' : c.bg}`}>
+                        <Icon className={`w-3.5 h-3.5 ${active ? 'text-primary' : c.color}`} />
+                      </div>
+                      {c.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 

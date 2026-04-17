@@ -160,7 +160,7 @@ export default function SettingsPage({ userId, username, email, avatarUrl: initi
       supabase.from('library').select('review, rating, games(name)').eq('user_id', userId).not('review', 'is', null),
     ])
     const blob = new Blob([JSON.stringify({ username, exportDate: new Date().toISOString(), settings, library: libRes.data ?? [], reviews: revRes.data ?? [] }, null, 2)], { type: 'application/json' })
-    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `gametrack-${new Date().toISOString().slice(0,10)}.json` })
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `Backlogg-${new Date().toISOString().slice(0,10)}.json` })
     a.click()
   }
 

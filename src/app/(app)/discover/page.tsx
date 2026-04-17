@@ -7,7 +7,6 @@ export default async function DiscoverPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Top jeux notés (hero + tendances) — toute la communauté
   const { data: topGames } = await supabase
     .from('library')
     .select('rating, games(id, name, genres, cover_url, platforms, released_at)')
@@ -15,20 +14,17 @@ export default async function DiscoverPage() {
     .order('rating', { ascending: false })
     .limit(20)
 
-  // Sorties récentes (toute la communauté)
   const { data: recentGames } = await supabase
     .from('library')
     .select('created_at, games(id, name, genres, cover_url, released_at, platforms)')
     .order('created_at', { ascending: false })
     .limit(8)
 
-  // Bibliothèque de l'utilisateur connecté (pour "Tous les jeux")
   const { data: myLibrary } = await supabase
     .from('library')
     .select('games(id, name, genres, cover_url, platforms, released_at)')
     .eq('user_id', user.id)
 
-  // Amis
   const { data: friendships } = await supabase
     .from('friendships')
     .select('requester_id, receiver_id')
@@ -39,7 +35,6 @@ export default async function DiscoverPage() {
     f.requester_id === user.id ? f.receiver_id : f.requester_id
   )
 
-  // Avis d'amis
   let friendReviews: any[] = []
   if (friendIds.length > 0) {
     const { data } = await supabase
@@ -48,13 +43,40 @@ export default async function DiscoverPage() {
       .in('user_id', friendIds)
       .not('review', 'is', null)
       .order('updated_at', { ascending: false })
-      .limit(3)
+      .limit(9)
     friendReviews = data || []
   }
 
+  // Avis les plus likés via review_likes (nécessite policy RLS "Public liked reviews readable")
+  const { data: topLikedRaw } = await supabase
+    .from('review_likes')
+    .select('library_id, user_id')
+    .limit(100)
 
+  const likedIds = [...new Set((topLikedRaw || []).map((r: any) => r.library_id).filter(Boolean))]
+  const likeCounts: Record<string, number> = {}
+  for (const row of topLikedRaw || []) {
+    if (row.library_id) likeCounts[row.library_id] = (likeCounts[row.library_id] || 0) + 1
+  }
 
-  // Jeux populaires - triés par vues réelles
+  let popularReviews: any[] = []
+  if (likedIds.length > 0) {
+    const { data: likedReviews } = await supabase
+      .from('library')
+      .select('id, user_id, review, rating, updated_at, profiles(username, avatar_color, avatar_url), games(id, name, cover_url)')
+      .in('id', likedIds)
+      .not('review', 'is', null)
+    popularReviews = (likedReviews || [])
+      .map(r => ({
+        ...r,
+        likes:     likeCounts[r.id] ?? 0,
+        likedByMe: (topLikedRaw || []).some((l: any) => l.library_id === r.id && l.user_id === user!.id),
+      }))
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, 5)
+  }
+
+  // Jeux populaires — 5
   const { data: popularGamesRaw } = await supabase
     .from('games')
     .select('id, name, cover_url, genres, view_count')
@@ -64,8 +86,20 @@ export default async function DiscoverPage() {
 
   const popular = (popularGamesRaw || []).map(g => ({
     game: g,
-    count: g.view_count ?? 0
+    count: g.view_count ?? 0,
   }))
+
+  // Derniers jeux visités — via game_views
+  const { data: recentlyVisitedRaw } = await supabase
+    .from('game_views')
+    .select('visited_at, games(id, name, cover_url, genres)')
+    .eq('user_id', user.id)
+    .order('visited_at', { ascending: false })
+    .limit(8)
+
+  const recentlyVisited = (recentlyVisitedRaw || [])
+    .map((r: any) => r.games)
+    .filter(Boolean)
 
   function unique(items: any[]) {
     const seen = new Set()
@@ -77,28 +111,29 @@ export default async function DiscoverPage() {
     })
   }
 
-  const uTop = unique(topGames || [])
+  const uTop    = unique(topGames || [])
+  const myGames = unique(myLibrary || []).map((i: any) => i.games).filter(Boolean).slice(0, 8)
 
-  // Jeux de l'utilisateur — dédupliqués
-  const myGames = unique(myLibrary || []).map((i: any) => i.games).filter(Boolean)
-
-  // Map likes onto reviews
-  const mapLikes = (reviews: any[]) => reviews.map(r => ({
-    ...r,
-    likes: r.review_likes?.length ?? 0,
-    likedByMe: r.review_likes?.some((l: any) => l.user_id === user.id) ?? false,
-  }))
+  function mapLikes(reviews: any[]) {
+    return reviews.map(r => ({
+      ...r,
+      likes:     r.review_likes?.length ?? 0,
+      likedByMe: r.review_likes?.some((l: any) => l.user_id === user!.id) ?? false,
+    }))
+  }
 
   return (
     <HomeClient
       userId={user.id}
       featuredGame={uTop[0]?.games ?? null}
       featuredRating={uTop[0]?.rating ?? null}
-      trendingGames={uTop.slice(0, 6).map((i: any) => i.games)}
+      trendingGames={uTop.slice(0, 8).map((i: any) => i.games)}
       allGames={myGames}
       weeklyReleases={unique(recentGames || []).slice(0, 3)}
       friendReviews={mapLikes(friendReviews)}
       popularGames={popular}
+      popularReviews={popularReviews}
+      recentlyVisited={recentlyVisited}
     />
   )
 }

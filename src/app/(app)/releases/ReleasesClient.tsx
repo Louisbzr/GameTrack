@@ -13,6 +13,7 @@ interface ReleaseGame {
   cover_url: string | null
   released: string | null
   genres: string[]
+  category_label?: string | null
   platforms: string[]
   metacritic: number | null
   rating_count: number
@@ -148,7 +149,14 @@ function AddModal({
             }
           </div>
           <div className="flex-1 min-w-0 pt-1 space-y-1.5">
-            <h2 className="font-bold text-ink dark:text-ink-dark leading-snug line-clamp-3">{game.name}</h2>
+            <div className="flex items-start gap-2 flex-wrap">
+              <h2 className="font-bold text-ink dark:text-ink-dark leading-snug line-clamp-3">{game.name}</h2>
+              {game.category_label && (
+                <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 uppercase tracking-wide mt-0.5">
+                  {game.category_label}
+                </span>
+              )}
+            </div>
             {game.released && <p className="text-xs text-primary neon-text font-medium">{formatDate(game.released)}</p>}
             {game.genres?.[0] && <p className="text-xs text-ink-subtle">{game.genres.slice(0, 2).join(' · ')}</p>}
             <div className="flex flex-wrap gap-1 pt-0.5">

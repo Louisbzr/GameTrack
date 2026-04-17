@@ -118,7 +118,7 @@ export default function LandingClient({ stats }: Props) {
           <div className="text-center space-y-6 mb-16">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold">
               <Star className="w-3 h-3" />
-              Letterboxd pour les jeux vidéo
+              Ta critique pour les jeux vidéo
             </div>
             <h1 className="text-5xl md:text-7xl font-extrabold leading-[1.05] tracking-tight">
               <span className="text-foreground">Tracke ta passion</span>
@@ -135,11 +135,11 @@ export default function LandingClient({ stats }: Props) {
               <Link href="/register"
                 className="flex items-center gap-2 px-8 py-4 rounded-xl text-base font-bold text-primary-foreground hover:opacity-90 hover:scale-105 active:scale-95 transition-all"
                 style={{ backgroundColor: 'hsl(var(--primary))', boxShadow: '0 0 30px hsl(var(--primary) / 0.4)' }}>
-                Commencer <ArrowRight className="w-5 h-5" />
+                Commencer 
               </Link>
               <Link href="/login"
                 className="flex items-center gap-2 px-8 py-4 rounded-xl text-base font-medium text-muted-foreground hover:text-foreground transition-colors border border-border">
-                Déjà membre ? Se connecter
+                Déjà membre ? 
               </Link>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function LandingClient({ stats }: Props) {
           <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-foreground">Ton profil, ta vitrine</h2>
             <p className="text-muted-foreground mt-2 max-w-lg mx-auto text-sm">
-              Stats détaillées, historique de jeux, badges et avis — tout visible en un coup d'œil.
+              Stats détaillées, historique de jeux, badges et avis, tout visible en un coup d'œil.
             </p>
           </div>
 
@@ -385,7 +385,7 @@ export default function LandingClient({ stats }: Props) {
           <Link href="/register"
             className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl text-lg font-bold text-primary-foreground hover:opacity-90 hover:scale-105 active:scale-95 transition-all"
             style={{ backgroundColor: 'hsl(var(--primary))', boxShadow: '0 0 40px hsl(var(--primary) / 0.5)' }}>
-            Créer mon compte <ChevronRight className="w-6 h-6" />
+            Créer mon compte
           </Link>
         </div>
       </section>

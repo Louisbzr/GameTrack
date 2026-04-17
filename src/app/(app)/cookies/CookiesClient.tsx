@@ -57,14 +57,14 @@ export default function CookiesClient() {
           <div className="glass rounded-xl p-6">
             <h2 className="font-bold text-foreground mb-3">Cookies tiers</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              GameTrack n'utilise pas de cookies publicitaires ou de tracking tiers. Nous n'utilisons pas Google Analytics ni aucun outil de surveillance comportementale.
+              Backlogg n'utilise pas de cookies publicitaires ou de tracking tiers. Nous n'utilisons pas Google Analytics ni aucun outil de surveillance comportementale.
             </p>
           </div>
 
           <div className="glass rounded-xl p-6">
             <h2 className="font-bold text-foreground mb-3">Gérer vos cookies</h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-              Vous pouvez contrôler et supprimer les cookies via les paramètres de votre navigateur. Notez que désactiver les cookies essentiels empêchera la connexion à GameTrack.
+              Vous pouvez contrôler et supprimer les cookies via les paramètres de votre navigateur. Notez que désactiver les cookies essentiels empêchera la connexion à Backlogg.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Pour supprimer votre compte et toutes les données associées, rendez-vous dans <a href="/settings" className="text-primary hover:underline">Paramètres → Données & compte</a>.

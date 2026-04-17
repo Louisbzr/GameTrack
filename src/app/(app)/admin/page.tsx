@@ -40,6 +40,11 @@ export default async function AdminPage() {
     .order('created_at', { ascending: false })
     .limit(30)
 
+  const { data: suggestions } = await supabase
+    .from('suggestions')
+    .select('*, profiles(username)')
+    .order('created_at', { ascending: false })
+    
   return (
     <AdminClient
       stats={{
@@ -50,6 +55,7 @@ export default async function AdminPage() {
       }}
       reports={reports ?? []}
       recentUsers={recentUsers ?? []}
+      suggestions={suggestions ?? []}
     />
   )
 }

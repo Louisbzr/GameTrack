@@ -127,13 +127,15 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50" style={{ borderRadius: 0 }}>
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/discover" className="flex items-center gap-2">
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between relative">
+        {/* Logo — gauche */}
+        <Link href="/discover" className="flex items-center gap-2 flex-shrink-0">
           <Gamepad2 className="w-7 h-7 text-primary neon-text" />
           <span className="font-bold text-xl neon-text hidden sm:block tracking-tight">Backlogg</span>
         </Link>
 
-        <div className="flex items-center gap-1">
+        {/* Nav + Search — centre absolu */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
           {links.map(({ to, icon: Icon, label }) => {
             const isActive = pathname === to || (to !== '/discover' && pathname.startsWith(to))
             return (
@@ -234,6 +236,10 @@ export default function NavbarClient({ username, avatarColor = 'forest', avatarU
             )}
           </div>
 
+        </div>
+
+        {/* Actions — droite */}
+        <div className="flex items-center gap-1 flex-shrink-0">
           <ThemeToggle />
 
           {/* Notification Bell */}

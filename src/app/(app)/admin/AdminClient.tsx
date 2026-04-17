@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Shield, Users, Gamepad2, Flag, Check, X, Eye, Trash2,
-  BarChart3, AlertTriangle, Clock, CheckCircle, XCircle, RefreshCw
+  BarChart3, AlertTriangle, Clock, CheckCircle, XCircle, RefreshCw, Lightbulb, Sparkles, Palette, Bug, Database, MessageSquare
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -13,6 +13,7 @@ interface Props {
   stats: { users: number; games: number; library: number; reports: number }
   reports: any[]
   recentUsers: any[]
+  suggestions: any[]
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -29,12 +30,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   dismissed:{ label: 'Ignoré',     color: 'text-muted-foreground' },
 }
 
-export default function AdminClient({ stats, reports: initialReports, recentUsers }: Props) {
+export default function AdminClient({ stats, reports: initialReports, recentUsers, suggestions: initialSuggestions }: Props) {
   const supabase = createClient()
   const router   = useRouter()
-  const [activeTab, setActiveTab] = useState<'overview' | 'reports' | 'users'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'reports' | 'users' | 'suggestions'>('overview')
   const [reports,   setReports]   = useState(initialReports)
   const [filter,    setFilter]    = useState<string>('pending')
+  const [suggestions, setSuggestions] = useState(initialSuggestions ?? [])
+  const [sugFilter,  setSugFilter]  = useState<string>('all')
   const [updating,  setUpdating]  = useState<string | null>(null)
 
   async function updateReport(id: string, status: string) {
@@ -70,7 +73,8 @@ export default function AdminClient({ stats, reports: initialReports, recentUser
   const TABS = [
     { id: 'overview', label: 'Vue d\'ensemble', icon: BarChart3 },
     { id: 'reports',  label: `Signalements${pendingCount > 0 ? ` (${pendingCount})` : ''}`, icon: Flag },
-    { id: 'users',    label: 'Utilisateurs',    icon: Users },
+    { id: 'users',       label: 'Utilisateurs',    icon: Users },
+    { id: 'suggestions', label: `Suggestions${suggestions.length > 0 ? ` (${suggestions.length})` : ''}`, icon: Lightbulb },
   ] as const
 
   return (
@@ -228,6 +232,58 @@ export default function AdminClient({ stats, reports: initialReports, recentUser
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {/* ── SUGGESTIONS ── */}
+        {activeTab === 'suggestions' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              {['all','feature','ui','bug','content','other'].map(f => (
+                <button key={f} onClick={() => setSugFilter(f)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                    sugFilter === f ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                  }`}>
+                  {f === 'all' ? 'Toutes' : f === 'feature' ? 'Fonctionnalité' : f === 'ui' ? 'Design' : f === 'bug' ? 'Bug' : f === 'content' ? 'Contenu' : 'Autre'}
+                </button>
+              ))}
+            </div>
+            {(sugFilter === 'all' ? suggestions : suggestions.filter(s => s.category === sugFilter)).length === 0 ? (
+              <div className="glass rounded-xl p-10 text-center text-muted-foreground">
+                <Lightbulb className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p>Aucune suggestion</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(sugFilter === 'all' ? suggestions : suggestions.filter(s => s.category === sugFilter))
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .map(s => (
+                  <div key={s.id} className="glass rounded-xl p-5 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                          s.category === 'feature' ? 'bg-amber-500/15 text-amber-400' :
+                          s.category === 'ui'      ? 'bg-purple-500/15 text-purple-400' :
+                          s.category === 'bug'     ? 'bg-red-500/15 text-red-400' :
+                          s.category === 'content' ? 'bg-blue-500/15 text-blue-400' :
+                          'bg-secondary text-muted-foreground'
+                        }`}>
+                          {s.category === 'feature' ? 'Fonctionnalité' : s.category === 'ui' ? 'Design' : s.category === 'bug' ? 'Bug' : s.category === 'content' ? 'Contenu' : 'Autre'}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(s.created_at).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        @{s.profiles?.username ?? 'Joueur'}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-foreground">{s.title}</p>
+                    {s.body && <p className="text-sm text-muted-foreground leading-relaxed">{s.body}</p>}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

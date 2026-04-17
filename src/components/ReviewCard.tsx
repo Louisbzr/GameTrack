@@ -55,10 +55,10 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
   const color    = AVATAR_COLORS[review.avatar_color ?? 'forest'] ?? '#22c55e'
   const initials = (review.username ?? '?').slice(0, 2).toUpperCase()
 
-  const [likes,   setLikes]   = useState(review.likes ?? 0)
-  const [liked,   setLiked]   = useState(review.likedByMe ?? false)
-  const [loading,    setLoading]    = useState(false)
-  const [reporting,  setReporting]  = useState(false)
+  const [likes,     setLikes]     = useState(review.likes ?? 0)
+  const [liked,     setLiked]     = useState(review.likedByMe ?? false)
+  const [loading,   setLoading]   = useState(false)
+  const [reporting, setReporting] = useState(false)
 
   async function handleLike() {
     if (!currentUserId || loading) return
@@ -78,6 +78,7 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
 
   return (
     <div className="glass rounded-lg p-4 space-y-3">
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden ring-2 ring-border">
@@ -93,14 +94,15 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
               <Link href={`/games/${gameId}`} className="text-xs text-primary hover:underline">{gameTitle}</Link>
             )}
             {gameTitle && !gameId && <p className="text-xs text-primary">{gameTitle}</p>}
-            <p className="text-xs text-muted-foreground">{date}</p>
           </div>
         </div>
         <StarDisplay rating={review.rating} />
       </div>
 
+      {/* Review text */}
       <p className="text-sm text-muted-foreground leading-relaxed">{review.review}</p>
 
+      {/* Footer : likes | date + signaler */}
       <div className="flex items-center justify-between pt-1">
         <button
           onClick={handleLike}
@@ -112,12 +114,16 @@ export default function ReviewCard({ review, gameTitle, gameId, currentUserId }:
           <ThumbsUp className={`w-3.5 h-3.5 ${liked ? 'fill-primary' : ''}`} />
           {likes}
         </button>
-        {currentUserId && currentUserId !== review.user_id && (
-          <button onClick={() => setReporting(true)}
-            className="flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-red-400 transition-colors">
-            <Flag className="w-3 h-3" />
-          </button>
-        )}
+
+        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+          <span className="text-[11px] text-muted-foreground/50 whitespace-nowrap">{date}</span>
+          {currentUserId && currentUserId !== review.user_id && (
+            <button onClick={() => setReporting(true)}
+              className="flex-shrink-0 flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-red-400 transition-colors">
+              <Flag className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {reporting && currentUserId && (

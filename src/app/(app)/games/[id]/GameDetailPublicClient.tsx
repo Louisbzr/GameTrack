@@ -124,6 +124,18 @@ export default function GameDetailPublicClient({ game, reviews, myEntry, similar
       .catch(() => {})
   }, [game.id])
 
+  // ── Tracker la visite (UUID check pour éviter FK error) ──────────────────
+  useEffect(() => {
+    if (!userId || !game?.id) return
+    // Vérifie que c'est bien un UUID Supabase (pas un ID IGDB numérique)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(game.id))
+    if (!isUUID) return
+    supabase.from('game_views').upsert(
+      { user_id: userId, game_id: game.id, visited_at: new Date().toISOString() },
+      { onConflict: 'user_id,game_id' }
+    ).then(() => {})
+  }, [game.id, userId])
+
   useEffect(() => {
     if (activeTab !== 'community' || discussionsLoaded) return
     supabase.from('discussions')
@@ -932,7 +944,7 @@ export default function GameDetailPublicClient({ game, reviews, myEntry, similar
                       </div>
                     )}
                     {discussions.map((d: any) => (
-                      <button key={d.id} onClick={() => setOpenDiscussion(d)}
+                      <button key={d.id} onClick={() => router.push(`/discussions/${d.id}`)}
                         className="w-full glass rounded-xl p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors group text-left">
                         <div className="space-y-0.5 min-w-0">
                           <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">{d.title}</p>
@@ -1194,29 +1206,15 @@ export default function GameDetailPublicClient({ game, reviews, myEntry, similar
 function CarouselSection({ games, supabase, router, offset, setOffset }: {
   games: any[]; supabase: any; router: any; offset: number; setOffset: (fn: (o: number) => number) => void
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const CARD_W = 160
-  const getMax = () => {
-    const w = containerRef.current?.offsetWidth ?? 1200
-    return Math.max(0, (games.length - Math.floor(w / CARD_W)) * CARD_W)
-  }
   return (
-    <div ref={containerRef} className="relative overflow-hidden w-full">
-      <div className="flex gap-4 pb-3 transition-transform duration-300" style={{ transform: `translateX(-${offset}px)` }}>
+    <div className="overflow-x-auto pb-3 -mx-1 px-1 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="flex gap-4" style={{ width: 'max-content' }}>
         {games.map((g: any, i: number) => (
           <div key={g.id} className="flex-shrink-0 w-36">
             <SimilarGameCard game={g} index={i} supabase={supabase} router={router} />
           </div>
         ))}
       </div>
-      {offset > 0 && (
-        <button onClick={() => setOffset(o => Math.max(0, o - CARD_W * 3))}
-          className="absolute left-0 top-1/3 -translate-y-1/2 w-8 h-8 rounded-full glass flex items-center justify-center text-foreground shadow-lg z-10 text-lg font-bold">‹</button>
-      )}
-      {offset < getMax() && (
-        <button onClick={() => setOffset(o => Math.min(getMax(), o + CARD_W * 3))}
-          className="absolute right-0 top-1/3 -translate-y-1/2 w-8 h-8 rounded-full glass flex items-center justify-center text-foreground shadow-lg z-10 text-lg font-bold">›</button>
-      )}
     </div>
   )
 }
